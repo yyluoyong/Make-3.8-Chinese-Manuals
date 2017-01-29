@@ -1,0 +1,752 @@
+﻿\chapter{Makefile的约定}
+
+本章讨论书写Makefile时需要遵循的约定。工具“Automake”可以帮助我们创建一个遵循
+这些约定的Makefile。所有GNU发布的软件包中的Makefile都是按照这些标准的约定来书
+写的。因此理解本章的内容，可帮助很快的熟悉那些开源代码的结构。而对于我们，在
+为一个工程书写Makefile时，也尽量遵循这些约定。虽然并没有强求你这么做，但是建
+议你还是按照已约定的规则来书写自己的Makefile。
+
+\section{基本的约定}
+本节讨论书写Makefile时应遵循的一些基本约定，由于不同版本make之间的差异。可能
+在GNU make环境中正常工作的Makefile，换成其它版本的make执行时会发生错误。为了
+最大可能的兼容不同版本的make，这里给出了一些基本的约定。
+
+\section{基本的约定}
+本节讨论书写Makefile时应遵循的一些基本约定，由于不同版本make之间的差异。可能
+在GNU make环境中正常工作的Makefile，换成其它版本的make执行时会发生错误。为了
+最大可能的兼容不同版本的make，这里给出了一些基本的约定。
+
+\begin{enumerate}
+  \item 所有的Makefile中应该包含这样一行：
+
+\begin{Verbatim}[]
+SHELL = /bin/sh
+\end{Verbatim}
+
+
+  其目的是为了避免变量“SHELL”在有些系统上可能继承同名的系统环境变量而导致错
+      误。虽然在GNU 版本的make中不会出现这种问题（GNU make 中变量“SHELL”的
+      默认值是“/bin/sh”，它不同于系统环境变量“SHELL”）。
+
+  \item 小心处理后缀和隐含规则。不同make可识别后缀和隐含规则可能不同，它可
+      能会导致混乱或者错误。因此在特定Makefile中明确限定可识别的后缀是一个
+      不错的主意。在Makefile中应该这样做：
+
+\begin{Verbatim}[]
+.SUFFIXES:
+.SUFFIXES: .c .o
+\end{Verbatim}
+
+第一行首先取消掉make默认的可识别后缀列表，第二行重新指定可识别的后缀列表。
+
+  \item 小心处理规则中的路径。当需要处理指定目录的的文件时，应该明确给出路
+      径。如“./”代表当前目录，“\$(srcdir)”代表源代码目录。没有指定明确路
+      径，那么就意味着是当前目录。
+
+      目录“./”（当前目录，GNU的发布软件包中的“build”目录）和“\$(srcdir)”的
+      区别和重要，我们可以通过“configure”脚本的选项“--srcdir”指定源代码所在
+      的目录（可参考GNU发布的软件包中的configure脚本）。当源代码目录和build
+      目录不同时，规则：
+
+\begin{Verbatim}[]
+foo.1 : foo.man sedscript
+    sed –e sedscript foo.man > $@
+\end{Verbatim}
+
+将执行失败，是因为“foo.man”和“sedscript”并不在当前目录（当然，处理这种错误
+的手段可能有很多，诸如使用变量“VPATH”等）。当前目录只是build目录，并不是软
+件包目录。
+
+  \item 使用GNU make的变量“VPATH”指定搜索目录。当规则只有一个依赖文件时。应
+      该使用自动化变量“\$<”和“\$@”代替出现在命令的依赖文件和目标文件（其它
+      版本的make，只在隐含规则中设置自动化变量“\$<”）。对于一个这样的规则：
+
+\begin{Verbatim}[]
+foo.o : bar.c
+    $(CC) –I. –I$(srcdir) $(CFLAGS) –c bar.o –o foo.o
+\end{Verbatim}
+
+我们在Makefile中应该以这种方式来书写：
+
+\begin{Verbatim}[]
+foo.o : bar.c
+    $(CC) –I. –I$(srcdir) $(CFLAGS) –c $< –o $@
+\end{Verbatim}
+
+另外，对于有多个依赖的规则，为了规则能被正确执行。应该在规则的命令行中明确
+的指定文件的完整路径名。例如第一个例子就可以这样写（需要在规则之前使用
+“VPATH”指定搜索目录）：
+
+\begin{Verbatim}[]
+foo.1 : foo.man sedscript
+    sed –e $(srcdir)/sedscript $(srcdir)/foo.man > $@
+\end{Verbatim}
+
+\end{enumerate}
+
+在GNU的发布软件包中，包括了很多非源代码的文件。诸如：“info”文件、“Autoconf”的
+输出文件、“Automake”、“Bison”或者“Flex”等文件。这些文件在发布时也存在于源代码
+的目录中。因此Makefile中对它们的重建也应该是在源代码目录下，而不应该在build目
+录。
+
+相反的，对于那些本来就不存在于源代码目录下的文件，也不应该将它们创建在源代码
+的目录下。\textbf{要记住，make的过程不应该以任何方式修改源代码，或者改变源代
+码目录的结构}。
+
+\section{规则命令行的约定}
+本节讨论书写规则命令的一些约定，在书写多系统兼容的Makefile时，需要注意不同系
+统的命令存在不兼容。这里对规则命令行做出了一些书写的基本约定：
+
+\begin{enumerate}
+  \item 书写Makefile时，规则的命令（包括其他的脚本文件，如：configure）应该
+      是“sh”而不是“csh”所支持的。
+  \item 用于创建和安装的“configure”脚本以及Makefile中的命令，除使用下面所列
+      出的之外，避免使用其它命令：
+\begin{Verbatim}[]
+cat cmp cp diff echo egrep expr false grep install-info ln ls mkdir mv pwd
+rm rmdir sed sleep sort tar test touch true
+\end{Verbatim}
+
+  \item 在目标“dist”的命令行中可以使用压缩工具“gzip”。
+  \item 对于可使用的这些工具命令，尽量使用它的通用选项。不要使用那些只在特
+      定系统上有效的选项。如：“mkdir -p”这个命令在Linux系统上能够很好的工
+      作，但是其它很多系统却并不支持“mkdir”的“-p”选项。
+  \item 尽量不要在规则的命令行中创建符号连接文件（使用“ln”命令）。因为有些
+      系统不支持符号连接文件（对于类Unix的系统我们基本上没有问题，可能这里
+      所说的是MS-DOS系统的系统。我想大家也没有兴趣或者说没有必要在MS-DOS下
+      写Makefile，所以这个限制基本可以不考虑）。
+  \item 重建或者安装目标（一般是伪目标）的命令行可使用编译器或者相关工具程
+      序，这些命令使用一个变量来表示。这样做的好处是：当修改一个命令时，只
+      需要更改代表命令的变量的值就可以了。对于以下的这些命令程序：
+\begin{Verbatim}[]
+ar  bison  cc  flex  install  ld  ldconfig  lex make  makeinfo  ranlib
+texi2dvi  yacc
+\end{Verbatim}
+
+在规则中的命令中，使用以下这些变量来代表它们：
+
+\begin{Verbatim}[]
+$(AR) $(BISON) $(CC) $(FLEX) $(INSTALL) $(LD) $(LDCONFIG)$(LEX) $(MAKE)
+$(MAKEINFO) $(RANLIB) $(TEXI2DVI) $(YACC)
+\end{Verbatim}
+
+
+
+\end{enumerate}
+
+如果规则的命令行需要使用“ranlib”或者“ldconfig”等这些工具时，需要考虑当前的系
+统是否支持这些工具。当在不支持它的系统中执行包含此命令的规则时，要能够给出提
+示信息（提示原因是告诉用户系统不支持此命令，但不应该出现错误而退出执行）。
+
+对以上没有列出的其它命令，在规则的命令行使用时也应该都是通过变量的形式。例如
+如下的这些命令：
+
+\begin{Verbatim}[]
+chgrp chmod chown mknod
+\end{Verbatim}
+
+我们可以在Makefile中为这些命令组件定义一个代表它的变量（如：CHRP、CHMOD等，在
+命令行中就可以使用\$(CHMOD)来引用）。
+
+书写多系统兼容Makefile时需要遵循以上的约定。如果只考虑一种系统时，以上的这些
+约定中可以灵活处理，比如：在命令组件的使用上，我们就可以使用这个系统独具的那
+些命令组件；系统支持符号链接时，我们就可以在命令行重创建一个符号链接文件。对
+于上边的第6个约定，强烈建议大家都遵循。
+
+\section{代表命令变量}
+在我们书写的Makefile中应该讲所有的命令、选项作为变量定义，方便后期对命令的修
+改和对选项的修改。就是说用户可以通过修改一个变量值来重新指定所要执行的命令，
+或者来控制命令执行的选项、参数等。
+
+当使用变量来表示命令时，如果规则中需要使用此命令时，可通过引用代表此命令的变
+量来实现。例如：定义变量“CC = gcc”，规则中就可使用“\$(CC)”来引用“gcc”。对于一
+些件管理器工具如“ln”，“rm”“mv”等，可以不为它们定义变量，而直接使用。
+
+所有命令执行的参数选项也应该定义一个变量（可称为命令的选项变量）。在命令变量
+（代表一个命令的变量）后添加“FLAGS”来命名这个选项变量。例如：变量“CFLAGS”是c
+编译器（命令变量为“CC”）的命令行选项变量；变量YFLAGS时命令“yacc”（命令变量为
+“YACC”）选项变量；变量“LDFLAGS”是命令“ld”（命令变量为“LD”）的选项变量等。在所
+有需要执行预处理的命令行应该使用变量“CCFLAGS”作为gcc的执行参数；同样任何需要
+执行链接的命令行中使用“LDFLAGS”作为命令的执行参数。
+
+c编译器的编译选项变量“CFLAGS”在Makefile中通常是为编译所有的源文件提供选项变
+量。为编译一个特定文件增加的选项，不应包含在变量“CFLAGS”中。编译特定文件（或
+者一类特定文件）时，如果需要使用特定的选项参数，可以将这些选项写在编译它所执
+行规则的命令行中（也可以使用目标指定变量或者模式指定变量）。例如：
+\begin{Verbatim}[]
+CFLAGS = -g
+ALL_CFLAGS = -I $(CFLAGS)
+.c.o:
+    $(CC) -c $(CPPFLAGS) $(ALL_CFLAGS) $<
+\end{Verbatim}
+
+例子中，变量“CFLAGS”指定编译选项为“-g”，在本例中它作为缺省的编译选项。对于所
+有源文件的编译都使用“-g”选项。双后缀规则的命令行中为编译生成“.o”文件指定了另
+外的选项“-I. -g”。
+
+在所有编译命令行中，变量“CFLAGS”应该放在编译选项列表的最后。这样可以保证当命
+令行参数出现重复时，“CFLAGS”始终效的。另外，在任何调用c编译器的命令行中都应该
+使用选项变量“CFLAGS”，无论是进行编译还是连接。
+
+如果需要在Makefile中实现文件安装的规则，那么就需要在Makefile中定义变量
+“INSTALL”。此变量代表安装命令（install）。同时在Makefile中也需要定义变量
+“INSTALL\_PROGRAM”和“INSTALL\_DATA”（“INSTALL\_PROGRAM”的缺省值都是
+“\$(INSTALL)”；“INSTALL\_DATA”的缺省值是“\$\{INSTALL\} –m 644”）。可以使用这
+些变量，来安装可执行程序或者非可执行程序到指定位置。例如：
+
+\begin{Verbatim}[]
+$(INSTALL_PROGRAM) foo $(bindir)/foo $(INSTALL_DATA) libfoo.a
+$(libdir)/libfoo.a
+\end{Verbatim}
+
+另外，也可以使用变量“DESTDIR”来指定目标需要安装的目录。通常也可以不在Makefile
+定义变量“DESTDIR”，可通过make命令行参数的形式来指定。例如：“make
+DESTDIR=exec/ install”。因此上边的命令就可以这样实现：
+
+\begin{Verbatim}[]
+$(INSTALL_PROGRAM) foo $(DESTDIR)$(bindir)/foo $(INSTALL_DATA) libfoo.a
+$(DESTDIR)$(libdir)/libfoo.a
+\end{Verbatim}
+
+安装命令中使用文件名而不是目录名作为第二个参数。每一个需要安装的文件使用单独
+的命令（包括安装一个目录）。
+
+\section{安装目录变量}
+在Makefile中，安装目录同样需要使用变量来指定，这样就可以很方便的修改文件的安
+装路径。安装目录的标准命名下边将一一介绍。这些变量基于标准的文件系统结构，这
+些变量的变种在SVR4、4.4BSD、Linux、Ultrix v4以及其它现代操作系统中都有使用。
+
+以下所罗列的两个变量是指定安装文件的根目录。所有其它安装目录都是它们的子目
+录。注意：文件不能直接安装在这两个目录下。
+
+\begin{dinglist}{226}
+\itemsep=4pt \parskip=0pt
+
+\item \textbf{prefix}
+
+这个变量（通常作为实际文件安装目录的父目录，可以理解为其它实际文件安装目录的
+前缀）用于构造下列（除这两个安装根目录以外的其它目录变量）变量的缺省值。变量
+“prefix”缺省值是“/usr/local”。创建完整的GNU系统时，变量prefix的缺省值是空值，
+“/usr”是“/”的符号连接符文件。（如果使用“Autoconf”工具，它应该写成
+“@prefix@”）。注意：当更改了变量“prefix”以后重新执行“make install”，不会导致
+可执行程序（终极目标）的重建。
+
+\item \textbf{exec\_prefix}
+
+这个前缀用于构造下列变量的缺省值。变量“exec\_prefix”缺省值是“\$(prefix)”（如
+果使用“Autoconf”工具，它应该写为“@exec\_prefix@”）。通常，“\$(exec\_prefix)”
+目录中的子目录下存放和机器相关文件（例如可执行文件和例程库）。“\$(prefix)”目
+录的子目录存放通用的一般文件。同样：改变“exec\_prefix”的值之后执行“make
+install”，不会重建可执行程序（终极目标）。
+
+\end{dinglist}
+
+文件（包括可执行程序、说明文档等）的安装目录：
+
+\begin{dinglist}{226}
+\itemsep=4pt \parskip=0pt
+
+\item \textbf{bindir}
+
+用于安装一般用户可运行的可执行程序。通常它的值为：“/usr/local/bin”，使用时应
+写为：“\$(exec\_prefix)/bin”。 （使用“Autoconf”工具时，应该为“@bindir@”）。
+
+\item \textbf{sbindir}
+
+安装可在shell中直接调用执行的程序。这些命令仅对系统管理员有用（系统管理工
+具）。通常它的值为：“/usr/local/sbin”，要求在使用时应写为：
+“\$(exec\_prefix)/sbin”。（使用“Autoconf”工具时，应该为“@sbindir@”）。
+
+\item \textbf{libexecdir}
+
+用于安装那些通常不是由用户直接使用，而是由其它程序调用的可执行程序。通常它的
+值为：“/usr/local/libexec”，要求在使用时应写为：“\$(exec\_prefix)/libexec”。
+（使用“Autoconf”工具时，应该为“@libexecdir@”）。
+
+\end{dinglist}
+
+程序执行时使用的数据文件可从以下两个方面来分类：
+
+\begin{enumerate}
+  \item 是否可由程序更改。分为两类：程序可修改和不可修改的文件（虽然用户可
+      编辑其中某些文件）。
+  \item 是否和体系结构相关。分为两类：体系结构无关文件，可被所有类型的机器
+      共享；体系结构相关文件，仅可被相同类型机器、操作系统共享；其它的就是
+      那些不能被任何两个机器共享的文件。
+\end{enumerate}
+
+这样就存在六种不同的可能。除编译生成的目标文件（.o文件）和库文件以外，不推荐
+使用那些和特定机器体系结构相关的文件，使用和体系无关的数据文件更加简洁，而
+且，它的实现也并不非常困难。
+
+在Makefile中应该使用以下变量为不同类型的文件指定对应的安装目录：
+\begin{dinglist}{226}
+\itemsep=4pt \parskip=0pt
+
+\item \textbf{datadir}
+
+用于安装和机器体系结构无关的只读数据文件。通常它的值为：“/usr/local/share”，
+使用时应写为：“\$(prefix)/share”。（使用“Autoconf”工具时，应该为
+“@datadir@”）。“\$(infodir)”和“\$(includedir)”作为例外情况，参考后续对它们的
+详细描述。
+
+\item \textbf{sysconfdir}
+
+用于安装从属于特定机器的只读数据文件，包括：主机配置文件、邮件服务、网络配置
+文件、“/etc/passwd”文件等。所有该目录下的文件都应该是普通文本文件（可识别的
+“ASCII”码文本文件）。通常它的值为：“/usr/local/etc”，在使用时应写为：
+“\$(prefix)/etc”。（使用“Autoconf”工具时，应该为“@sysconfdir@”）。
+
+不要将可执行文件安装在这个目录下（可执行文件的安装目录应该是“\$(libexecdir)”
+或者“\$(sbindir)”）。也不要在这个目录下安装那些需要更改的文件（系统的配置文件
+等）。这些文件应该安装在目录“\$(localstatedir)”下。
+
+\item \textbf{sharedstatedir}
+
+用于安装那些可由程序运行时修改的文件，这些文件与体系结构无关。通常它的值为：
+“/usr/local/com”，要求在使用时应写为：“\$(prefix)/com”。 （使用“Autoconf”工具
+时，应该为“@sharedstatedir@”）。
+
+\item \textbf{localstatedir}
+
+用于安装那些可由程序运行时修改的文件，但这些文件和体系结构相关。用户没有必要
+通过直接修改这些文件来配置软件包，对于不同的配置文件，将它们放在“\$(datadir)”
+或者“\$(sysconfdir)”目录中。“\$(localstatedir)”值通常为：“/usr/local/var”，在
+使用时应写为：“\$(prefix)/var”。（使用“Autoconf”工具时，应该为
+“@localstatedir@”）。
+
+
+\item \textbf{libdir}
+
+用于存放编译后的目标文件（.o）文件库文件（文档文件或者执行的共享库文件）。不
+要在此目录下安装可执行文件（可执行文件应该安装在目录“\$(libexecdir)”下）。变
+量libdir值通常为：“/usr/local/lib”，使用时应写为：“\$(exec\_prefix)/lib”。
+（使用“Autoconf”工具时，应该为“@libdir@”）。
+
+
+\item \textbf{infodir}
+
+用于安装软件包的 Info 文件。它的缺省值为：“/usr/local/info”，使用时应写为：
+“\$(prefix)/info”。（使用“Autoconf”工具时，应该为“@infodir@”）。
+
+\item \textbf{lispdir}
+
+用于安装软件包的Emacs Lisp 文件的目录。它的缺省值为：
+“/usr/local/share/emacs/site-lisp”，使用时应写为：
+“\$(prefix)/share/emacs/site-lisp”。当使用Autoconf工具时，应将写为
+“@lispdir@”。为了保证“@lispdir@”能够正常工作，需要在“configure.in”文件中包含
+如下部分：
+
+\begin{Verbatim}[]
+lispdir='${datadir}/emacs/site-lisp'
+AC_SUBST(lispdir)
+\end{Verbatim}
+
+\item \textbf{includedir}
+
+用于安装用户程序源代码使用“\#include”包含的头文件。它的缺省值为：
+“/usr/local/include”，使用时应写为：“\$(prefix)/include”。 （使用“Autoconf”工
+具时，应该为“@includedir@”）。
+
+除gcc外的大多数编译器不会在目录“/usr/local/include”中搜寻头文件，因此这种方式
+只适用gcc编译器。这一点应该不是一个问题，因为很多情况下一些库需要gcc才能工
+作。对那些依靠其它编译器的库文件，需要将头文件安装在两个地方，一个由变量
+“includedir”指定，另一个由变量“oldincludedir”指定。
+
+\item \textbf{oldincludedir}
+
+它所指定的目录也同样用于安装头文件，这些头文件用于非gcc的编译器。它的缺省值
+为：“/usr/include”。（使用“Autoconf”工具时，应该为“@oldincludedir@”）。
+
+Makefile在安装头文件时，需要判断变量“oldincludedir”的值是否为空。如果为空，就
+不使用它进行头文件的安装（一般是安装完成“/usr/local/include”下的头文件之后才
+安装此目录下的头文件）。
+
+一个软件包的安装不能替换该目录下已经存在的头文件，除非是同一个软件包（重新使
+用相同的软件包在此目录下安装头文件）。例如，软件包“Foo”需要在“oldincludedir”
+指定的目录下安装一个头文件“foo.h”时，可安装的条件为：1. 目录
+“\$(oldincludedir)”目录下不存在头文件“foo.h”；2. 已经存在头文件“foo.h”，存在
+的头文件“foo.h”是之前软件包“Foo”安装的。
+
+检查头文件“foo.h”是否来自于软件包Foo，需要在头文件的注释中包含一个“magic”字符
+串，使用命令“grep”来在该文件中查找这个magic。
+\end{dinglist}
+
+Unix风格的帮助文件需要安装在以下目录中：
+
+\begin{dinglist}{226}
+\itemsep=4pt \parskip=0pt
+
+\item \textbf{mandir}
+
+安装该软件包的帮助文档（如果有）的顶层目录。它的缺省值为：“/usr/local/man”，
+要求在使用时应写为：“\$(prefix)/man”。 （使用“Autoconf”工具时，应该为
+“@@mandir@@”）。
+
+\item \textbf{mandir}
+
+安装该软件包的帮助文档（如果有）的顶层目录。它的缺省值为：“/usr/local/man”，
+要求在使用时应写为：“\$(prefix)/man”。 （使用“Autoconf”工具时，应该为
+“@@mandir@@”）。
+
+\item \textbf{man1dir}
+
+用于安装帮助文档的第一节（man 1）。它的缺省值为：“\$(mandir)/man1”。。
+
+\item \textbf{man2dir}
+
+用于安装帮助文档的第二节（man 2）。它的缺省值为：“\$(mandir)/man2”。
+
+\item \textbf{manext}
+
+文件名扩展字，它是对安装手册的扩展。以点号（.）开始的十进制数。缺省值为：
+“.1”。
+
+\item \textbf{man1ext}
+
+帮助文档的第一节（man 1）的文件名扩展字。
+
+\item \textbf{man2ext}
+
+帮助文档的第一节（man 2）的文件名扩展字。
+
+当一个软件包的帮助手册有多个章节时，使用这些变量代替“manext”。（第一节
+“man1ext”，第二节“man2ext”，第三节“man3ext”……）。
+\end{dinglist}
+
+而且下列这些变量也应该在Makefile中定义：
+
+\begin{dinglist}{226}
+\itemsep=4pt \parskip=0pt
+
+\item \textbf{srcdir}
+
+安装该软件包的帮助文档（如果有）的顶层目录。它的缺省值为：“/usr/local/man”，
+要求在使用时应写为：“\$(prefix)/man”。 （使用“Autoconf”工具时，应该为
+“@@mandir@@”）。
+
+\item \textbf{mandir}
+
+此变量指定的目录是需要编译的源文件所在的目录。该变量的值
+    在使用“configure”脚本对软件包进行配置时产生的。（使用“Autoconf”工具，应该
+    书写为“srcdir = @srcdir@”）。
+
+例如：
+\begin{Verbatim}[]
+# 安装的普通目录路径前缀。
+# 注意：该目录在开始安装前必须存在
+prefix = /usr/local
+exec_prefix = $(prefix)
+# 放置“gcc”命令使用的可执行程序
+bindir = $(exec_prefix)/bin
+# 编译器需要的目录
+libexecdir = $(exec_prefix)/libexec
+# 软件包的Info文件所在目录
+infodir = $(prefix)/info
+\end{Verbatim}
+
+\end{dinglist}
+
+在用户标准指定的目录下安装大量文件时，可以将这些文件分类安装在指定目录的多个
+子目录下。可以在Makefile中实现一个“install”伪目标来描述安装这些文件的命令（包
+括创建子目录，安装文件到对应的子目录中）。
+
+在发布的软件包中，不能强制要求用户必须指定这些安装目录的变量。使用一套标准的
+安装目录变量来指定安装目录，当用户需要指定安装目录时，通过修改变量定义来指定
+具体的目录，在用户没有指定的情况下，使用默认的目录。
+
+\section{Makefile的标准目标名}
+所有GNU发布的软件包的Makefile中，必须包含以下这些目标：
+
+\begin{dinglist}{226}
+\itemsep=4pt \parskip=2pt
+
+\item \textbf{all}
+
+此目标的动作是编译整个软件包。“all”应该为Makefile的终极目标。该目标的动作不重
+建任何文档（只编译所有的源代码，生成可执行程序）；Info文件应该作为发布文件的
+一部分，DVI文件只在明确指定的时候才应该被重建。
+
+缺省情况下，对所有源程序的编译和连接应该使用选项“-g”，是最终的可执行程序中包
+含调试信息。当最终的可执行程序不需要包含调试信息时，可使用“strip”去掉可执行程
+序中的调试符号以减小最终的程序大小。
+
+\item \textbf{install}
+
+此目标的动作是完成程序的编译并将最终的可执行程序、库文件等拷贝到安装的目录。
+如果只是验证这些程序是否可被正确安装，它的动作应该是一个测试安装动作。
+
+安装时一般不要对可执行程序进行strip（去掉可执行程序内部的调试信息）。存在另外
+一个目标“install-strip”，它实现安装的同时完成对可执行程序strip。
+
+保证目标“install”的动作不更改程序创建目录（builid目录）下的任何文件，对这个目
+录下文件的修改（重建或者更新）是目标“all”所要定义的动作。
+
+“install”目标定义的动作在安装目录不存在时，能够创建这些不存在的安装目录。这些
+目录包括：变量“prefix”和“exec\_prefix”指定的目录和所有必要的子目录。完成此任务
+的方式可以使用下边介绍的“installdirs”目标。
+
+在安装man文档的命令前使用“-”忽略这安装命令的错误，这样可以避免在没有Unix man
+文档的系统上执行安装时出现错误。
+
+安装Info文档的方法是使用变量“INSTALL\_DATA”将Info文档拷贝到“\$(infodir)”目录下
+去，如果存在“install-info”命令则执行它。“install-info”是一个编辑Info“dir”文件
+的程序，更新或者修改“info”文档的入口和目录；它是Texinfo软件包的一部分。这里有
+一个安装Info文档的例子：
+
+\begin{Verbatim}[]
+$(DESTDIR)$(infodir)/foo.info: foo.info
+    $(POST_INSTALL)
+# 可能在“.”（当前目录）存在一个新的文档，而不是“srcdir”。
+    -if test -f foo.info; then d=.; \
+    else d=$(srcdir); fi; \
+    $(INSTALL_DATA) $$d/foo.info $(DESTDIR)$@; \
+#如果install-info命令存在则运行它
+# 使用“if”代替在命令行前的“-”
+# 这样，就可以看到运行install-info产生的真正错误
+# 我们使用“$(SHELL) -c”是因为在一些shell中
+# 遇到未知的命令不会运行失败
+    if $(SHELL) -c 'install-info --version' \
+        >/dev/null 2>&1; then \
+        install-info --dir-file=$(DESTDIR)$(infodir)/dir \
+            $(DESTDIR)$(infodir)/foo.info; \
+    else true; fi
+\end{Verbatim}
+
+目标install的命令需要分为三类：正常命令、预安装命令和安装后命令。
+
+\item \textbf{uninstall}
+
+删除所有已安装文件——由install创建的文件拷贝。规则所定义的命令不能修改编译目录
+下的文件，仅仅是删除安装目录下的文件。像install目标的命令一样，uninstall目标
+的命令也分为三类。参考 14.6 安装命令分类 一节。
+
+\item \textbf{install-strip}
+
+和目标install的动作类似，但是install-strip指定的命令在安装时对可执行文件进行
+strip（去掉程序内部的调试信息）。它的定义如下：
+
+\begin{Verbatim}[]
+install-strip:
+    $(MAKE) INSTALL_PROGRAM='$(INSTALL_PROGRAM) -s'  install
+\end{Verbatim}
+
+如果软件包的存在安装脚本时，目标install-strip所定义的命令就不能是对目标
+“install”的引用，它仅仅完成对可执行文件的strip。
+
+“install-strip”不应该直接在build目录下对可执行文件进行strip，应该是对安装目录
+下的可执行文件进行strip。就是说“install-strip”所定义的命令不能对build目录下的
+文件产生影响。
+
+一般不建议安装时对可执行文件进行strip，因为去掉可执行文件的调试信息后，如果在
+程序中存在bug，就不能通过gdb对程序进行调试。
+
+
+\item \textbf{clean}
+
+清除当前目录下编译生成的所有文件，这些文件在make过程中产生。注意，clean动作不
+能删除软件包的配置文件，同时也不能删除build时创建的那些文件（诸如：目录、
+build生成的信息记录文件等）。因为这些文件都是发布版本的一部分。
+
+对于.dvi文件，当它不作为发布版本的一部分时，可以删除。
+
+\item \textbf{distclean}
+
+类似于目标clean，但增加删除当前目录下的的配置文件、build过程产生的文件。目标
+“distclean”指定的删除命令应该删除软件包中所有非发布文件。
+
+\item \textbf{mostlyclean}
+
+类似于目标“clean”，但是可保留一些编译生成的文件，避免在下次编译时对这些文件重
+建。例如，对于gcc来说，此目标指定的命令不删除文件“libgcc.a”，因为在绝大多数情
+况下它都不需要重新编译。
+
+\item \textbf{maintainer-clean}
+
+此目标所定义的命令几乎会删除所有当前目录下能够由Makefile重建的文件。典型的，
+包括目标“distclean”删除的文件、由Bison生成的.c源文件、tags记录文件、Ifon文件
+等。但是有一个例外，就是执行“make maintainer-clean”不能删除“configure”这个配
+置脚本文件，即使“configure”可以由Makefile生成。因为“configure”是软件包的配置
+脚本。
+
+目标“maintainer-clean”应该只能由维护软件包的用户使用，而不能被普通用户使用。
+因为它会删除一些软件包的发布文件，而重建这些文件可能需要专门的工具。因此我们
+在使用此目标是需要小心。为了让用户能够在执行前得到提示，通常目标
+“maintainer-clean”的命令以下两行为开始：
+
+@echo“该命令用于维护此软件包的用户使用”；
+
+@echo“它删除的文件可能需要使用特殊的工具来重建。”
+
+\item \textbf{TAGS}
+
+此目标所定义的命令完成对该程序的tags记录文件的更新。tags文件通常可被编辑器作
+为符号记录文件，例如vim，Emacs等。
+
+\item \textbf{info}
+
+产生必要的Info文档。此目标应该按照如下书写：
+
+\begin{Verbatim}[]
+info: foo.info
+
+foo.info: foo.texi chap1.texi chap2.texi
+$(MAKEINFO) $(srcdir)/foo.texi
+\end{Verbatim}
+
+
+必须在Makefile中定义变量“MAKEINFO”，代表命令工具makeinfo，该工具是发布软件
+Texinfo的一部分。
+
+通常，GNU的发布程序会和Info文档会被一同创建，这意味着Info文档是在源文件的目录
+下。用户在创建发布软件时，一般情况下，make不更新Info文档，因为它们已经更新到
+最新了。
+
+\item \textbf{dvi}
+
+为所有的Texinfo文件创建对应的DVI文件。例如：
+
+\begin{Verbatim}[]
+dvi: foo.dvi
+
+foo.dvi: foo.texi chap1.texi chap2.texi
+    $(TEXI2DVI) $(srcdir)/foo.texi
+\end{Verbatim}
+
+必须在Makefile中定义变量“TEXI2DVI”。它代表命令工具texi2dvi，该工具是发布软件
+Texinfo一部分。
+
+规则中也可以没有命令行，这样make程序会自动为它推导对应的命令。
+
+\item \textbf{dist}
+
+此目标指定的命令创建发布程序的tar文件。创建的tar文件应该是这个软件包的目录，
+文件名中也可以包含版本号（就是说创建的tar文件在解包之后应该是一个目录）。例
+如，发布的gcc 1.40版的tar文件解包的目录为“gcc-1.40”。
+
+通常的做法是是创建一个空目录，如使用ln或cp将所需要的文件加入到这个目录中，之
+后对这个目录使用tar进行打包。打包之后的tar文件使用gzip压缩。例如，实际的gcc
+1.40版的发布文件叫“gcc-1.40.tar.gz”。
+
+目标“dist”的依赖文件为软件包中所有的非源代码的文件，因此在使用目标进行发布软
+件打包压缩之前必须保证这些文件是最新的。
+
+
+\item \textbf{check}
+
+此目标指定的命令完成所有的自检功能。在执行检查之前，应确保所有程序已经被创
+建，可以不安装。为了对它们进行测试，需要实现在程序没有安装的情况下被执行的规
+则命令。
+
+\item \textbf{installcheck}
+
+执行安装检查。在执行安装检查之前，确保所有程序已经被创建并且被安装。需要注意
+的是：安装目录“\$(bindir)”是否在搜索路径中。
+
+\item \textbf{installdirs}
+
+使用目标“installdirs”创建安装目录以及它的子目录在很多场合是非常有用的。脚本
+“mkinstalldirs”就是为了实现这个目的而编写的；发布的Texinfo软件包中就包含了这
+个脚本文件。Makefile中的规则可以这样书写：
+
+\begin{Verbatim}[]
+# 确保所有安装目录（例如 $(bindir)）存在，如有必要则创建这些目录
+installdirs: mkinstalldirs
+    $(srcdir)/mkinstalldirs $(bindir) $(datadir) \
+        $(libdir) $(infodir) \
+        $(mandir)
+\end{Verbatim}
+
+或者可以使用变量“DESTDIR”：
+
+\begin{Verbatim}[]
+installdirs: mkinstalldirs
+    $(srcdir)/mkinstalldirs \
+        $(DESTDIR)$(bindir)  $(DESTDIR)$(datadir) \
+        $(DESTDIR)$(libdir)  $(DESTDIR)$(infodir) \
+        $(DESTDIR)$(mandir)
+\end{Verbatim}
+
+该规则不能更改软件的编译目录，仅仅是创建程序的安装目录。
+
+\end{dinglist}
+
+\section{安装命令分类}
+在为Makefile书写“install”目标时，需要将其命令分为三类：正常命令、安装前命令和
+安装后命令。
+
+正常命令是把文件移动到合适的地方，并设置它们的模式。这个过程不修改任何文件，
+仅仅是把需要安装的文件从软件包中拷贝到安装目录。
+
+安装前命令和安装后命令可能修改某些文件；通常，修改一些配置文件和系统的数据库
+文件。典型地，安装前命令在正常命令之前执行，安装后命令在正常命令执行后执行。
+
+大多数情况是，安装后命令是运行“install-info”程序。它所完成的工作不能由正常命
+令完成，因为它更新了一个文件（Info的目录），该文件不能单独的或者完整的从软件
+包来进行安装，因为它只能在正常安装命令完成安装软件包的info文档之后才可正确执
+行。
+
+大多数程序不需要安装前命令，但应该在Makefile中提供。
+
+将“install”规则的命令分为这三类时，应该在命令之间插入分类行（category
+lines）。分类行说明了后续需要执行的命令的类别。
+
+分类行是由一个[Tab]字符开始的对make特殊变量的引用，行尾是可选的注释内容。可以
+使用三个特殊的变量，每一个代表一种类别。分类行执行一个空动作，因为这三个特殊
+的make变量没有定义（我们书写的Makefile中也不能定义它们）。
+
+以下是三种可能的分类行，以及它们的解释：
+\begin{Verbatim}[]
+$(PRE_INSTALL)       # 以下是安装前命令
+$(POST_INSTALL)      # 以下是安装后命令
+$(NORMAL_INSTALL)    # 以下是正常命令
+\end{Verbatim}
+
+如果安装规则（install所在的规则）的命令行没有使用分类行，那么在第一个出现的分
+类行之前的所有的命令行都被认为是正常命令。如果命令行中没有分类行，那么规则的
+所有命令行都都被认为是正常命令行。
+
+对应的，以下这三个是“uninstall”命令的分类行：
+\begin{Verbatim}[]
+$(PRE_UNINSTALL)         #以下是卸载前命令
+$(POST_UNINSTALL)        #以下是卸载后命令
+$(NORMAL_UNINSTALL)      #以下是正常命令
+\end{Verbatim}
+
+卸载前命令应该是取消软件包Info文档的入口。
+
+如果目标install或 uninstall存在依赖，其作为安装的子例程，那么就应该在每一个依
+赖目标的命令行开始使用分类行，同时目标insall和uninstall的命令行开始也需要使用
+分类行。这样就可以确保任何调用方式时每一条命令都被正确的分类。
+
+除下列命令外，安装前命令和安装后命令不应该使用其它命令：
+\begin{Verbatim}[]
+basename bash cat chgrp chmod chown cmp cp dd diff echo egrep expand expr
+false fgrep find getopt grep gunzip gzip hostname install install-info kill
+ldconfig ln ls md5sum mkdir mkfifo mknod mv printenv pwd rm rmdir sed sort
+tee test touch true uname xargs yes
+\end{Verbatim}
+
+按照这种方式分类命令的原因是为了创建二进制的软件包。典型的二进制软件包包括可
+执行文件、必须安装的其它文件以及它自己的安装文件，因此二进制软件包就不需要任
+何正常命令、只需要安装前命令和安装后命令。
+
+创建二进制软件包的程序通过提取安装前命令和安装后命令工作。这里有一个抽取安装
+前命令的方法：
+
+\begin{Verbatim}[]
+make -n install -o all \
+    PRE_INSTALL=pre-install \
+    POST_INSTALL=post-install \
+    NORMAL_INSTALL=normal-install \
+    | gawk -f pre-install.awk
+\end{Verbatim}
+
+文件“pre-install.awk”可能包括以下内容：
+\begin{Verbatim}[]
+$0 ~ /^\t[ \t]*(normal_install|post_install)[ \t]*$/ {on = 0}
+on {print $0}
+$0 ~ /^\t[ \t]*pre_install[ \t]*$/ {on = 1}
+\end{Verbatim}
+
+安装前命令的执行结果和软件包的安装shell脚本的结果一样。

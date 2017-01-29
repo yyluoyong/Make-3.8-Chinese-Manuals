@@ -1,0 +1,217 @@
+﻿\chapter{Makefile的条件执行}
+条件语句可以根据一个变量的值来控制make执行或者忽略Makefile的特定部分。条件语
+句可以是两个不同变量、或者变量和常量值的比较。要注意的是：条件语句只能用于控
+制make实际执行的makefile文件部分，它不能控制规则的shell命令执行过程。Makefile
+中使用条件控制可以做到处理的灵活性和高效性。
+
+\section{一个例子}
+首先我们来看一个使用条件判断的Makefile例子；对变量“CC”进行判断，其值如果是
+“gcc”那么在程序连接时使用库“libgnu.so”或者“libgnu.a”，否则不链接任何库。
+Makefile中的条件判断部分如下：
+
+\begin{Verbatim}[]
+……
+libs_for_gcc = -lgnu
+normal_libs =
+
+……
+
+foo: $(objects)
+
+ifeq ($(CC),gcc)
+    $(CC) -o foo $(objects) $(libs_for_gcc)
+else
+    $(CC) -o foo $(objects) $(normal_libs)
+endif
+……
+\end{Verbatim}
+
+例子中，条件语句中使用到了三个关键字：“ifeq”、“else”和“endif”。其中：
+
+1. “ifeq”表示条件语句的开始，并指定了一个比较条件（相等）。之后是用圆括号括包
+围的、使用逗号“,”分割的两个参数，和关键字“ifeq”用空格分开。参数中的变量引用在
+进行变量值比较时被展开。“ifeq”之后就是当条件满足make需要执行的，条件不满足时
+忽略。
+
+2. “else”之后就是当条件不满足时的执行部分。不是所有的条件语句都需要此部分。
+
+3. “endif”表示一个条件语句的结束，任何一个条件表达式都必须以“endif”结束。
+
+通过上边的例子我们可以了解到。Makefile中，条件表达式工作于文本级别（条件判断
+处理为文本级别的处理过程），条件的解析是由make来完成的。make是在读取并解析
+Makefile时根据条件表达式忽略条件表达式中的某一个文本行，解析完成后保留的只有
+表达式满足条件所需要执行的文本行。上例，make处理条件的过程：
+
+当变量“CC”的值为“gcc”时，整个条件表达式等效于：
+
+\begin{Verbatim}[]
+foo: $(objects)
+    $(CC) -o foo $(objects) $(libs_for_gcc)
+\end{Verbatim}
+
+当变量“CC”值不等于“gcc”时等效于：
+\begin{Verbatim}[]
+foo: $(objects)
+    $(CC) -o foo $(objects) $(normal_libs)
+\end{Verbatim}
+
+上面的例子，一种更简洁实现方式：
+\begin{Verbatim}[]
+libs_for_gcc = -lgnu
+normal_libs =
+
+ifeq ($(CC),gcc)
+libs=$(libs_for_gcc)
+else
+libs=$(normal_libs)
+endif
+
+foo: $(objects)
+    $(CC) -o foo $(objects) $(libs)
+\end{Verbatim}
+
+\section{条件判断的基本语法}
+一个简单的不包含“else”分支的条件判断语句的语法格式为：
+\begin{Verbatim}[]
+CONDITIONAL-DIRECTIVE
+TEXT-IF-TRUE
+endif
+\end{Verbatim}
+\noindent 表达式中“TEXT-IF-TRUE”可以是若干任何文本行，当条件为真时它就将被
+make作为需要执行的一部分。当条件为假时，不作为需要执行的一部分。
+
+包含“else”的复杂一点的语法格式为：
+\begin{Verbatim}[]
+CONDITIONAL-DIRECTIVE
+TEXT-IF-TRUE
+else
+TEXT-IF-FALSE
+endif
+\end{Verbatim}
+\noindent 表示了如果条件为真，则将“TEXT-IF-TRUE”作为执行Makefile的一部分，否
+则将“TEXT-IF-FALSE”作为执行的Makefile的一部分。和“TEXT-IF-TRUE”一样，
+“TEXT-IF-FALSE”可以是若干任何文本行。
+
+条件判断语句中“CONDITIONAL-DIRECTIVE”对于上边的两种格式都是同样的。可以是以下
+四种用于测试不同条件的关键字。
+
+\subsection{关键字“ifeq”}
+此关键字用来判断参数是否相等，格式如下：
+\begin{Verbatim}[]
+'ifeq (ARG1, ARG2)'
+'ifeq 'ARG1' 'ARG2''
+'ifeq "ARG1" "ARG2"'
+'ifeq "ARG1" 'ARG2''
+'ifeq 'ARG1' "ARG2"'
+\end{Verbatim}
+
+替换展开“ARG1”和“ARG1”后，对它们的值进行比较。如果相同则（条件为真）将
+“TEXT-IF-TRUE”作为make要执行的一部分，否则将“TEXT-IF-FALSE”作为make要执行的一
+部分（上边的第二种格式）。
+
+通常我们会使用它来判断一个变量的值是否为空（不是任何字符）。参数值可能是通过
+引用变量或者函数得到的，因而在展开过程中可能造成参数值中包含空字符（空格
+等）。一般在这种情况时我们使用make的“strip”函数来对它变量的值进行处理，去掉其
+中的空字符。格式为：
+
+\begin{Verbatim}[]
+ifeq ($(strip $(foo)),)
+TEXT-IF-EMPTY
+endif
+\end{Verbatim}
+这样，即就是在“\$(foo)”中存在若干前导和结尾空格，“TEXT-IF-EMPTY”也会被作为
+Makefile需要执行的一部分。
+
+\subsection{关键字“ifneq”}
+此关键字是用来判断参数是否不相等，格式为：
+\begin{Verbatim}[]
+'ifneq (ARG1, ARG2)'
+'ifneq 'ARG1' 'ARG2''
+'ifneq "ARG1" "ARG2"'
+'ifneq "ARG1" 'ARG2''
+'ifneq 'ARG1' "ARG2"'
+\end{Verbatim}
+关键字“ifneq”实现的条件判断语句和“ifeq”相反。首先替换并展开“ARG1”和“ARG1”，对
+它们的值进行比较。如果不相同（条件为真）则将“TEXT-IF-TRUE”作为make要执行的一
+部分，否则将“TEXT-IF-FALSE”作为make要执行的一部分。
+
+\subsection{关键字“ifdef”}
+关键字“ifdef”用来判断一个变量是否已经定义。格式为：
+\begin{Verbatim}[]
+'ifdef VARIABLE-NAME'
+\end{Verbatim}
+
+如果变量“VAEIABLE\_NAME”的值非空（在Makefile中没有定义的变量的值为空），那么
+表达式为真，将“TEXT-IF-TRUE”作为make要执行的一部分。否则，表达式为假，如果存
+在“TEXT-IF-FALSE”，就将它作为make要执行一部分。当一个变量没有被定义时，它的值
+为空。“VARIABLE-NAME”可以是变量或者函数的引用。
+
+对于“ifdef”需要说明的是：\textbf{ifdef只是测试一个变量是否有值，不会对变量进
+行替换展开来判断变量的值是否为空}。对于变量“VARIABLE-NAME”，除了
+“VARIABLE-NAME=”这种情况以外，使用其它方式对它的定义都会使“ifdef”返回真。就是
+说，即使我们通过其它方式（比如，定义它的值引用了其它的变量）给它赋了一个空
+值，“ifdef”也会返回真。我们来看一个例子：
+
+例1：
+\begin{Verbatim}[]
+bar =
+foo = $(bar)
+ifdef foo
+frobozz = yes
+else
+frobozz = no
+endif
+\end{Verbatim}
+
+例2：
+\begin{Verbatim}[]
+foo =
+ifdef foo
+frobozz = yes
+else
+frobozz = no
+endif
+\end{Verbatim}
+
+例1中的结果是：“frobozz = yes”；而例2的结果是：“frobozz = no”。其原因就是在例
+1中，变量“foo”的定义是“foo = \$(bar)”。虽然变量“bar”的值为空，但是“ifdef”判断
+的结果是真。因此当我们需要判断一个变量的值是否为空的情况时，需要使用“ifeq”
+（或者“ifneq”）而不是“ifdef”。可参考前两个小节的内容。
+
+\subsection{关键字“ifndef”}
+关键字“ifndef”实现的功能和“ifdef”相反。格式为：
+\begin{Verbatim}[]
+'ifdef VARIABLE-NAME'
+\end{Verbatim}
+这个就不详细讨论了，它的功能就是实现了和“ifdef”相反的条件判断。
+
+在“CONDITIONAL-DIRECTIVE”这一行上，可以以若干个空格开始，make处理时会被忽略这
+些空格。但不能以[Tab]字符做为开始（不然就被认为是命令）。条件判断语句中，在除
+关键字（包括“endif”）之前、条件表达式参数中之外的其他任何地方都可以使用多个空
+格或[Tab]字符，它不会影响条件判断语句的功能。同样行尾也可以使用注释（“\#”开始
+直到一行的结束）。“else”和“endif”也是条件判断语句的一部分。在书写时它们都是没
+有任何参数的，可以以多个空格开始（同样不能以[Tab]字符开始）多个空格或[Tab]字
+符结束。行尾同样可以有注释内容。
+
+在make读取makefile文件时计算表达式的值，并根据表达式的值决定判断语句中那一部
+分被作为此Makefile所要执行的内容（选择符合条件的语句）。因此在条件表达式中不
+能使用自动化变量，自动化变量在规则命令执行时才有效。更不能将一个完整的条件判
+断语句分写在两个不同的makefile文件中，在一个makefile文件使用指示符“include”包
+含另外一个makefile文件。
+
+\section{标记测试的条件语句}
+我们可以使用条件判断语句、变量“MAKEFLAGS”和函数“findstring”，实现对make命令行
+选项的测试。看一个例子：
+\begin{Verbatim}[]
+archive.a: ...
+ifneq (,$(findstring t,$(MAKEFLAGS)))
+    +touch archive.a
+    +ranlib -t archive.a
+else
+    ranlib archive.a
+endif
+\end{Verbatim}
+
+这个条件语句判断make的命令行参数中是否包含“-t”（用来更新目标文件的时间戳）。
+根据命令行参数情况完成对“archive.a”执行不同的操作。命令行前的“+”的意思是告诉
+make，即使make使用了“-t”参数，“+”之后的命令都需要被执行。

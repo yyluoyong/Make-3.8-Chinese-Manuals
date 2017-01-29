@@ -1,0 +1,240 @@
+﻿\chapter{GNU make 介绍}
+
+make在执行时，需要一个命名为Makefile的文件。这个文件告诉make以何种方式编译源代码和链接程序。典型地，可执行文件可由一些.o文件按照一定的顺序生成或者更新。如果在你的工程中已经存在一个活着多个正确的Makefile。当对工程中的若干源文件修改以后，需要根据修改来更新可执行文件或者库文件，正如前面提到的你只需要在shell下执行“make”。make会自动根据修改情况完成源文件的对应.o文件的更新、库文件的更新、最终的可执行程序的更新。
+
+make通过比较对应文件（规则的目标和依赖，）的最后修改时间，来决定哪些文件需要更新、那些文件不需要更新。对需要更新的文件make就执行数据库中所记录的相应命令（在make读取Makefile以后会建立一个编译过程的描述数据库。此数据库中记录了所有各个文件之间的相互关系，以及它们的关系描述）来重建它，对于不需要重建的文件make什么也不做。
+而且可以通过make的命令行选项来指定需要重新编译的文件。
+
+
+\section{Makefile简介}
+在执行make之前，需要一个命名为Makefile的特殊文件（本文的后续将使用Makefile作为这个特殊文件的文件名）来告诉make需要做什么（完成什么任务），该怎么做。通常，make工具主要被用来进行工程编译和程序链接。
+
+本节将分析一个简单的Makefile，它对一个包含8个C的源代码和三个头文件的工程进行编译和链接。这个Makefile提供给了make必要的信息，make程序根据Makefile中的规则描述执行相关的命令来完成指定的任务（如：编译、链接和清除编译过程文件等）。复杂的Makefile我们将会在本文后续进行讨论。
+
+当使用make工具进行编译时，工程中以下几种文件在执行make时将会被编译（重新编译）：
+\begin{enumerate}
+\itemsep=0pt \parskip=0pt
+  \item \textbf{所有的源文件没有被编译过，则对各个C源文件进行编译并进行链接，生成最后的可执行程序；}
+  \item \textbf{每一个在上次执行make之后修改过的C源代码文件在本次执行make时将会被重新编译；}
+  \item \textbf{头文件在上一次执行make之后被修改。则所有包含此头文件的C源文件在本次执行make时将会被重新编译。}
+\end{enumerate}
+
+后两种情况是make只将修改过的C源文件重新编译生成.o文件，对于没有修改的文件不进行任何工作。重新编译过程中，任何一个源文件的修改将产生新的对应的.o文件，新的.o文件将和以前的已经存在、此次没有重新编译的.o文件重新连接生成最后的可执行程序。
+首先让我们先来看一些Makefile相关的基本知识。
+
+
+\section{Makefile规则介绍}
+一个简单的Makefile描述规则组成：
+\begin{Verbatim}[]
+TARGET... : PREREQUISITES...
+    COMMAND
+    ...
+    ...
+\end{Verbatim}
+
+\textbf{target}：规则的目标。通常是最后需要生成的文件名或者为了实现这个目的而必需的中间过程文件名。可以是.o文件、也可以是最后的可执行程序的文件名等。另外，目标也可以是一个make执行的动作的名称，如目标“clean”，我们称这样的目标是“伪目标”。
+
+\textbf{prerequisites}：规则的依赖。生成规则目标所需要的文件名列表。通常一个目标依赖于一个或者多个文件。
+
+\textbf{command}：规则的命令行。是规则所要执行的动作（任意的shell命令或者是可在shell下执行的程序）。它限定了make执行这条规则时所需要的动作。
+
+一个规则可以有多个命令行，每一条命令占一行。
+
+\begin{quote}\kaishu
+  \textbf{注意}：每一个命令行必须以[Tab]字符开始，[Tab]字符告诉make此行是一个命令行。make按照命令完成相应的动作。这也是书写Makefile中容易产生，而且比较隐蔽的错误。
+\end{quote}
+
+命令就是在任何一个目标的依赖文件发生变化后重建目标的动作描述。一个目标可以没有依赖而只有动作（指定的命令）。比如Makefile中的目标“clean”，此目标没有依赖，只有命令。它所定义的命令用来删除make过程产生的中间文件（进行清理工作）。
+
+
+在Makefile中“规则”就是描述在什么情况下、如何重建规则的目标文件，通常规则中包括了目标的依赖关系（目标的依赖文件）和重建目标的命令。make执行重建目标的命令，来创建或者重建规则的目标（此目标文件也可以是触发这个规则的上一个规则中的依赖文件）。\textbf{规则包含了文件之间的依赖关系和更新此规则目标所需要的命令。}
+
+一个Makefile文件中通常还包含了除规则以外的很多东西（后续我们会一步一步的展开）。一个最简单的Makefile可能只包含规则。规则在有些Makefile中可能看起来非常复杂，但是无论规则的书写是多么的复杂，它都符合规则的基本格式。
+
+make程序根据规则的依赖关系，决定是否执行规则所定义的命令的过程我们称之为\textbf{执行规则。}
+
+
+\section{简单的示例}
+本小节开始我们在第一小节中提到的例子。此例子由3个头文件和8个C文件组成。我们将书写一个简单的Makefile，来描述如何创建最终的可执行文件“edit”，此可执行文件依赖于8个C源文件和3个头文件。Makefile文件的内容如下：
+
+\begin{Verbatim}[]
+#sample Makefile
+edit : main.o kbd.o command.o display.o \
+    insert.o search.o files.o utils.o
+    cc -o edit main.o kbd.o command.o display.o \
+        insert.o search.o files.o utils.o
+main.o : main.c defs.h
+    cc -c main.c
+kbd.o : kbd.c defs.h command.h
+    cc -c kbd.c
+command.o : command.c defs.h command.h
+    cc -c command.c
+display.o : display.c defs.h buffer.h
+    cc -c display.c
+insert.o : insert.c defs.h buffer.h
+    cc -c insert.c
+search.o : search.c defs.h buffer.h
+    cc -c search.c
+files.o : files.c defs.h buffer.h command.h
+    cc -c files.c
+utils.o : utils.c defs.h
+    cc -c utils.c
+clean :
+    rm edit main.o kbd.o command.o display.o \
+        insert.o search.o files.o utils.o
+\end{Verbatim}
+
+首先书写时，可以将一个较长行使用反斜线（\verb"\"）来分解为多行，这样可以使我们的Makefile书写清晰、容易阅读理解。但需要注意：反斜线之后不能有空格（这也是大家最容易犯的错误，错误比较隐蔽）。我们推荐将一个长行分解为使用反斜线连接得多个行的方式。在完成了这个Maekfile以后；需要创建可执行程序“edit”，所要做的就是在包含此Makefile的目录（当然也在代码所在的目录）下输入命令“make”。删除已经此目录下之前使用“make”生成的文件（包括那些中间过程的.o文件），也只需要输入命令“make clean”就可以了。
+
+在这个Makefile中，我们的目标（target）就是可执行文件“edit”和那些.o文件（main.o,kbd.o….）；依赖（prerequisites）就是冒号后面的那些 .c 文件和 .h文件。所有的.o文件既是依赖（相对于可执行程序edit）又是目标（相对于.c和.h文件）。命令包括 “\verb"cc –c maic.c"”、“\verb"cc –c kbd.c"”……
+
+当规则的目标是一个文件，在它的任何一个依赖文件被修改以后，在执行“make”时这个目标文件将会被重新编译或者重新连接。当然，此目标的任何一个依赖文件如果有必要则首先会被重新编译。在这个例子中，“edit”的依赖为8个.o文件；而“main.o”的依赖文件为“main.c”和“defs.h”。当“main.c”或者“defs.h”被修改以后，再次执行“make”，“main.o”就会被更新（其它的.o文件不会被更新），同时“main.o” 的更新将会导致“edit”被更新。
+
+在描述依赖关系行之下通常就是规则的命令行（存在一些些规则没有命令行），命令行定义了规则的动作（如何根据依赖文件来更新目标文件）。\textbf{命令行必需以[Tab]键开始，以和Makefile其他行区别。就是说所有的命令行必需以[Tab] 字符开始，但并不是所有的以[Tab]键出现行都是命令行。但make程序会把出现在第一条规则之后的所有以[Tab]字符开始的行都作为命令行来处理。}（记住：make程序本身并不关心命令是如何工作的，对目标文件的更新需要你在规则描述中提供正确的命令。“make”程序所做的就是当目标程序需要更新时执行规则所定义的命令）。
+
+目标“clean”不是一个文件，它仅仅代表执行一个动作的标识。正常情况下，不需要执行这个规则所定义的动作，因此目标“clean”没有出现在其它任何规则的依赖列表中。因此在执行make时，它所指定的动作不会被执行。除非在执行make时明确地指定它。而且目标“clean”没有任何依赖文件，它只有一个目的，就是通过这个目标名来执行它所定义的命令。\textbf{Makefile中把那些没有任何依赖只有执行动作的目标称为“伪目标”（phony targets）}。需要执行“clean”目标所定义的命令，可在shell下输入：make clean。
+
+
+\section{make如何工作}
+
+默认的情况下，make执行的是Makefile中的第一个规则，此规则的第一个目标称之为“最终目的”或者“终极目标”（就是一个Makefile最终需要更新或者创建的目标。
+
+上例的Makefile，目标“edit”在Makefile中是第一个目标，因此它就是make的“终极目标”。当修改了任何C源文件或者头文件后，执行make将会重建终极目标“edit”。
+
+当在shell提示符下输入“make”命令以后。make读取当前目录下的Makefile文件，并将Makefile文件中的第一个目标作为其执行的“终极目标”，开始处理第一个规则（终极目标所在的规则）。在我们的例子中，第一个规则就是目标“edit”所在的规则。规则描述了“edit”的依赖关系，并定义了链接.o文件生成目标“edit”的命令； make在执行这个规则所定义的命令之前，首先处理目标“edit”的所有的依赖文件（例子中的那些.o文件）的更新规则（以这些.o文件为目标的规则）。对这些.o文件为目标的规则处理有下列三种情况：
+\begin{enumerate}
+\itemsep=0pt \parskip=0pt
+    \item 目标.o文件不存在，使用其描述规则创建它；
+    \item 目标.o文件存在，目标.o文件所依赖的.c源文件、.h文件中的任何一个比目标.o文件“更新”（在上一次make之后被修改）。则根据规则重新编译生成它；
+    \item 目标.o文件存在，目标.o文件比它的任何一个依赖文件（的.c源文件、.h文件）“更新”（它的依赖文件在上一次make之后没有被修改），则什么也不做。
+\end{enumerate}
+
+这些.o文件所在的规则之所以会被执行，是因为这些.o文件出现在“终极目标”的依赖列表中。在Makefile中一个规则的目标如果不是“终极目标”所依赖的（或者“终极目标”的依赖文件所依赖的），那么这个规则将不会被执行，除非明确指定执行这个规则（可以通过make的命令行指定重建目标，那么这个目标所在的规则就会被执行，例如 “make clean”）。在编译或者重新编译生成一个.o文件时，make同样会去寻找它的依赖文件的重建规则（是这样一个规则：这个依赖文件在规则中作为目标出现），在这里就是.c和.h文件的重建规则。在上例的Makefile中没有哪个规则的目标是.c或者.h文件，所以没有重建.c和.h文件的规则。不过C言语源程序文件可以使用工具Bison或者Yacc来生成（具体用法可参考相应的手册）。
+
+完成了对.o文件的创建（第一次编译）或者更新之后，make程序将处理终极目标“edit”所在的规则，分为以下三种情况：
+\begin{enumerate}
+\itemsep=0pt \parskip=0pt
+\item        目标文件“edit”不存在，则执行规则以创建目标“edit”。
+\item        目标文件“edit”存在，其依赖文件中有一个或者多个文件比它“更新”，则根据规则重新链接生成“edit”。
+\item       目标文件“edit”存在，它比它的任何一个依赖文件都“更新”，则什么也不做。
+\end{enumerate}
+
+上例中，如果更改了源文件“insert.c”后执行make，“insert.o”将被更新，之后终极目标“edit”将会被重生成；如果我们修改了头文件“command.h”之后运行“make”，那么“kbd.o”、“command.o”和“files.o”将会被重新编译，之后同样终极目标“edit”也将被重新生成。
+
+以上我们通过一个简单的例子，介绍了Makefile中目标和依赖的关系。我们简单总结一下：对于一个Makefile文件，“make”首先解析终极目标所在的规则（上节例子中的第一个规则），根据其依赖文件（例子中第一个规则的8个.o文件）依次（按照依赖文件列表从左到右的顺序）寻找创建这些依赖文件的规则。首先为第一个依赖文件（main.o）寻找创建规则，如果第一个依赖文件依赖于其它文件（main.c、defs.h），则同样为这个依赖文件寻找创建规则（创建main.c和defs.h的规则，通常源文件和头文件已经存在，也不存在重建它们的规则）……，直到为所有的依赖文件找到合适的创建规则。之后make从最后一个规则（上例目标为main.o的规则）回退开始执行，最终完成终极目标的第一个依赖文件的创建和更新。之后对第二个、第三个、第四个……终极目标的依赖文件执行同样的过程（上例的的顺序是“main.o”、“kbd.o”、“command.o”……）。
+
+创建或者更新每一个规则依赖文件的过程都是这样的一个过程（类似于c语言中的递归过程）。对于任意一个规则执行的过程都是按照依赖文件列表顺序，对于规则中的每一个依赖文件，使用同样方式（按照同样的过程）去重建它，在完成对所有依赖文件的重建之后，最后一步才是重建此规则的目标。
+
+更新（或者创建）终极目标的过程中，如果任何一个规则执行出现错误make就立即报错并退出。整个过程make只是负责执行规则，而对具体规则所描述的依赖关系的正确性、规则所定义的命令的正确性不做任何判断。就是说，一个规则的依赖关系是否正确、描述重建目标的规则命令行是否正确，make不做任何错误检查。
+
+因此，需要正确的编译一个工程。需要在提供给make程序的Makefile中来保证其依赖关系的正确性、和执行命令的正确性。
+
+
+\section{指定变量}
+同样是上边的例子，我们来看一下终极目标“edit”所在的规则：
+
+\begin{Verbatim}[]
+edit : main.o kbd.o command.o display.o \
+    insert.o search.o files.o utils.o
+    cc -o edit main.o kbd.o command.o display.o \
+        insert.o search.o files.o utils.o
+\end{Verbatim}
+
+在这个规则中.o文件列表出现了两次；第一次：作为目标“edit”的依赖文件列表出现，第二次：规则命令行中作为“cc”的参数列表。这样做所带来的问题是：如果我们需要为目标“edit”增加一个的依赖文件，我们就需要在两个地方添加（依赖文件列表和规则的命令中）。添加时可能在“edit”的依赖列表中加入了、但却忘记了给命令行中添加，或者相反。这就给后期的维护和修改带来了很多不方便，添加或修改时出现遗漏。
+
+为了避免这个问题，在实际工作中大家都比较认同的方法是，使用一个变量“objects”、“OBJECTS”、“objs”、“OBJS”、“obj”或者“OBJ”来作为所有的.o文件的列表的替代。在使用到这些文件列表的地方，使用此变量来代替。在上例的Makefile中我们可以添加这样一行：
+
+\begin{Verbatim}[]
+objects = main.o kbd.o command.o display.o \
+    insert.o search.o files.o utils.o
+\end{Verbatim}
+
+“objects”作为一个变量，它代表所有的.o文件的列表。在定义了此变量后，我们就可以在需要使用这些.o文件列表的地方使用“\$(objects)”来表示它，而不需要罗列所有的.o文件列表（变量可参考 第六章 使用变量）。因此上例的规则就可以这样写：
+
+\begin{Verbatim}[]
+objects = main.o kbd.o command.o display.o \
+    insert.o search.o files.o utils.o
+edit : $(objects)
+    cc -o edit $(objects)
+……
+……
+clean :
+    rm edit $(objects)
+\end{Verbatim}
+
+
+当我们需要为终极目标“edit”增加或者去掉一个.o依赖文件时，只需要改变“objects”的定义（加入或者去掉若干个.o文件）。这样做不但减少书写的工作量，而且可以减少修改而产生错误的可能。
+
+\section{自动推导规则}
+在使用make编译.c源文件时，编译.c源文件规则的命令可以不用明确给出。这是因为make本身存在一个默认的规则，能够自动完成对.c文件的编译并生成对应的.o文件。它执行命令“cc -c”来编译.c源文件。在Makefile中我们只需要给出需要重建的目标文件名（一个.o文件），make会自动为这个.o文件寻找合适的依赖文件（对应的.c文件。对应是指：文件名除后缀外，其余都相同的两个文件），而且使用正确的命令来重建这个目标文件。对于上边的例子，此默认规则就使用命令“cc -c main.c -o main.o”来创建文件“main.o”。对一个目标文件是“N.o”，倚赖文件是“N.c”的规则，完全可以省略其规则的命令行，而由make自身决定使用默认命令。此默认规则称为make的隐含规则。
+
+这样，在书写Makefile时，我们就可以省略掉描述.c文件和.o依赖关系的规则，而只需要给出那些特定的规则描述（.o目标所需要的.h文件）。因此上边的例子就可以以更加简单的方式书写，我们同样使用变量“objects”。Makefile内容如下：
+
+
+\begin{Verbatim}[]
+# sample Makefile
+objects = main.o kbd.o command.o display.o \
+    insert.o search.o files.o utils.o
+
+edit : $(objects)
+    cc -o edit $(objects)
+
+main.o : defs.h
+kbd.o : defs.h command.h
+command.o : defs.h command.h
+display.o : defs.h buffer.h
+insert.o : defs.h buffer.h
+search.o : defs.h buffer.h
+files.o : defs.h buffer.h command.h
+utils.o : defs.h
+
+.PHONY : clean
+clean :
+    rm edit $(objects)
+\end{Verbatim}
+
+这种格式的Makefile更接近于我们实际应用。（关于目标“clean”的详细说明我们在后边进行）
+make的隐含规则在实际工程的make中会经常使用，它使得编译过程变得方便。几乎在所有的Makefile中都用到了make的隐含规则，make的隐含规则是非常重要的一个概念。后续我们会在第十章会有专门的讨论。
+
+
+\section{另类风格的makefile}
+Makefile中，目标使用隐含规则生成，我们就可以也可以书写另外一种风格Makefile。在这个Makefile中，根据依赖而不是目标对规则进行分组。上例的Makefile就可以这样来实现：
+
+\begin{Verbatim}[]
+#sample Makefile
+objects = main.o kbd.o command.o display.o \
+    insert.o search.o files.o utils.o
+
+edit : $(objects)
+    cc -o edit $(objects)
+
+$(objects) : defs.h
+kbd.o command.o files.o : command.h
+display.o insert.o search.o files.o : buffer.h
+\end{Verbatim}
+
+例子中头文件“defs.h”作为所有.o文件的依赖文件。其它两个头文件作为其对应规则的目标中所列举的所有.o文件的依赖文件。
+
+但是这种风格的Makefile并不值得我们借鉴。问题在于：同时把多个目标文件的依赖放在同一个规则中进行描述（一个规则中含有多个目标文件），这样导致规则定义不明了，比较混乱。建议大家不要在Makefile中采用这种方式了书写。否则后期维护将会是一件非常痛苦的事情。
+
+书写规则建议的方式是：\textbf{单目标，多依赖}。就是说尽量要做到一个规则中只存在一个目标文件，可有多个依赖文件。尽量避免多目标，单依赖的方式。这样后期维护也会非常方便，而且Makefile会更清晰、明了。
+
+\section{清除工作目录过程文件}
+
+规则除了完成源代码编译之外，也可以完成其它任务。例如：前边提到的为了实现清除当前目录中编译过程中产生的临时文件（edit和哪些.o文件）的规则：
+\begin{Verbatim}[]
+clean :
+    rm edit $(objects)
+\end{Verbatim}
+在实际应用时，我们把这个规则写成如下稍微复杂一些的样子。以防止出现始料未及的情况。
+\begin{Verbatim}[]
+.PHONY : clean
+clean :
+    -rm edit $(objects)
+\end{Verbatim}
+
+这两个实现有两点不同： 1. 通过“.PHONY”特殊目标将“clean”目标声明为伪目标。避免当磁盘上存在一个名为“clean”文件时，目标“clean”所在规则的命令无法执行。2. 在命令行之前使用“-”，意思是忽略命令“rm”的执行错误。
+
+这样的一个目标在Makefile中，不能将其作为终极目标（Makefile的第一个目标）。因为我们的初衷并不是当你在命令行上输入make以后执行删除动作。而是要创建或者更新程序。在我们上边的例子中。就是在输入make以后要需要对目标“edit”进行创建或者重建。
+
+上例中因为目标“clean”没有出现在终极目标“edit”依赖关系中（终极目标的直接依赖或者间接依赖），所以我们执行“make”时，目标“clean”所在的规则将不会被处理。当需要执行此规则，要在make的命令行选项中明确指定这个目标（执行“make clean”）。关于make的执行可参考 9.2 指定终极目标 一节。

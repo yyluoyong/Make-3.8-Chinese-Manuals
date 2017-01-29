@@ -1,0 +1,589 @@
+﻿\chapter{执行make}
+一般描述整个工程编译规则的Makefile可以通过不止一种方式来执行。最简单直接的方
+法就是使用不带任何参数的“make”命令来重新编译所有过时的文件。通常我们的
+Makefile就书写为这种方式。
+
+在某些情况下：
+\begin{enumerate}
+\itemsep=4pt \parskip=0pt
+\item  可能需要使用make更新一部分过时文件而不是全部。
+
+\item 需要使用另外的编译器或者重新定义编译选项。
+
+\item 只需要察看那些文件被修改，而不需要重新编译。
+\end{enumerate}
+
+为了达到这些特殊的目的，需要使用make的命令行参数来实现。Make的命令行参数能实
+现的功能不仅限于这些，通过make的命令行参数可以实现很多特殊功能。
+
+另外，make的退出状态有三种：
+\begin{enumerate}
+\itemsep=4pt \parskip=0pt
+\item[]  0 — 状态为0时，表示执行成功。
+
+\item[] 2 — 执行过程出现错误，同时会提示错误信息。
+
+\item[] 1 — 在执行make时使用了“-q”参数，而且当前工程中存在过时的目标文件。
+\end{enumerate}
+
+本章的内容主要讲述如何使用make的命令参数选项来实现一些特殊的目的。在本章最后
+会对make的命令行参数选项进行比较详细的讨论。
+
+\section{指定makefile文件}
+本文以前的部分对如何指定makefile文件已经有过介绍。当需要将一个普通命名的文件
+作为makefile文件时，需要使用make的“-f”、“--file”或者“--makefile”选项来指定。
+例如：“make –f altmake”，它的意思是告诉make将文件“altmake”作为makefile文件来
+解析执行。
+
+当在make的命令行选项中出现多个“-f”参数时，所有通过“-f”参数指定的文件都被作为
+make解析执行的makefile文件。
+
+默认情况，在没有使用“-f”（“--file”或者“--makefile”）指定文件时。make会在工作
+目录（当前目录）依次搜索命名为“GNUmakefile”、“makefile”和“Makefile”的文件，最
+终解析执行的是这三个文件中首先搜索到的哪一个。
+
+\section{指定终极目标}
+“终极目标”的基本概念我们在前面已经提到过。所谓终极目标就是make最终所要重建的
+Makefile某个规则的目标（也可以称之为“最终规则”）。为了完成对终极目标的重建，
+可能会触发它的依赖或者依赖的依赖文件被重建的过程。
+
+默认情况下，终极目标就是出现在Makefile中，除以点号“.”开始的第一个规则中的第一
+个目标（如果第一个规则存在多个目标）。因此Makefile书写时需要保证：第一个目标
+的编译规则就描述了整个工程或者程序的编译过程和规则。如果Makefile的第一个规则
+有多个目标，那么默认的终极目标是多个目标中的第一个。我们在Makefile所在的目录
+下执行“make”时，将完成对默认终极目标的重建。
+
+另外，也可以通过命令行将一个Makefile中的目标指定为此次make过程的终极目标，替
+代默认的终极目标。使用Makefile中目标名作为参数来执行“make”（格式为 “make
+TARGET\_NAME”，如：“make clean”），可以把这个目标指定为终极目标。使用这种方
+式，我们也可以同时指定多个终极目标。
+
+任何出现在Makefile规则中的目标都可以被指定为终极目标（不包含以“-”开始的和包含
+“=”的赋值语句，一般它们也不会作为一个目标出现），甚至可以指定一个在Makefile中
+不存在的目标作为终极目标，前提是存在一个对应的隐含规则能够实现对这个目标的重
+建。例如：目录“src”下存在一个.c的源文件“foo.c”，我们的Makefile中不存在对目标
+“foo”的描述规则，或者当前目录下就没有默认的makefile文件，为了编译“foo.c”生成
+可执行的“foo”。只需要将“foo”作为make的参数执行：“make foo”就可以实现编译“foo”
+的目的。
+
+make在执行时设置一个特殊变量“MAKECMDGOALS”，此变量记录了命令行参数指定的终极
+目标列表，没有通过参数指定终极目标时此变量为空。注意：此变量仅用在特殊的场合
+（比如判断），在Makeifle中不要对它进行重新定义！例如：
+
+\begin{Verbatim}[]
+sources = foo.c bar.c
+ifneq ($(MAKECMDGOALS),clean)
+include $(sources:.c=.d)
+endif
+\end{Verbatim}
+
+例子中使用了变量“MAKECMDGOALS”来判断命令行参数是否指定终极目标为“clean”，如果
+不是才包含所有源文件对应的依赖关系描述文件。上例的功能是避免“make clean”时
+make试图重建所有.d文件的过程。
+
+这种方式主要用在以下几个方面：
+
+1. 对程序的一部分进行编译，或者仅对某几个程序进行编译而不是完整编译这个工程
+（也可以在命令行参数中明确给出原本的默认的终极目标，例如：make all，没有人会
+说它是错误的。但是大家都会认为多此一举）。例如以下一个Makefile的片段，其中各
+个文件都有自己的描述规则：
+\begin{Verbatim}[]
+.PHONY: all all: size nm ld ar as
+\end{Verbatim}
+\noindent 仅需要重建“size”文件时，执行“make size”就可以了。其它的程序就不会被
+重建。
+
+2. 指定编译或者创建那些正常编译过程不能生成的文件（例如重建一个调试输出文件、
+或者编译一个调试版本的程序等），这些文件在Makefile中存在重建规则，但是它们没
+有出现在默认终极目标目标的依赖中。
+
+3. 指定执行一个由伪目标定义的若干条命令或者一个空目标文件。如绝大多数Makefile
+中都会包含一个“clean”伪目标，这个伪目标定义了删除make过程生成的所有文件的命
+令，需要删除这些文件时执行“make clean”就可以了。本节以下列出了一些典型的伪目
+标和空目标的名字。
+
+部分标准的伪目标和空目标命名：
+\begin{dinglist}{71}
+\itemsep=4pt \parskip=0pt
+\item \textbf{all}
+
+\item \textbf{clean}
+
+这个伪目标定义了一组命令，这些命令的功能是删除所有由make创建的文件。
+\item \textbf{mostlyclean}
+
+和“clean”伪目标功能相似。区别在于它所定义的删除命令不会全部删除由make生成的文件。比如说不需要删除某些库文件。
+\item \textbf{distclean}
+
+\item \textbf{realclean}
+
+\item \textbf{clobber}
+
+同样类似于伪目标“clean”，但它们所定义的删除命令所删除的文件更多。可以包含非make创建的文件。例如：编译之前系统的配置文件、链接文件等。
+\item \textbf{install}
+
+将make成功创建的可执行文件拷贝到shell 环境变量“PATH”指定的某个目录。典型的，应用可执行文件被拷贝到目录“/usr/local/bin”，库文件拷贝到目录“/usr/local/lib”目录下。
+\item \textbf{print}
+
+打印出所有被更改的源文件列表。
+\item \textbf{tar}
+
+创建一个tar文件（归档文件包）。
+\item \textbf{shar}
+
+创建一个源代码的shell文档（shar文件）。
+\item \textbf{dist}
+
+为源文件创建发布的压缩包，可以使各种压缩方式的发布包。
+\item \textbf{TAGS}
+
+创建当前目录下所有源文件的符号信息（“tags”）文件，这个文件可被vim使用。
+\item \textbf{check}
+\item \textbf{test}
+
+\end{dinglist}
+
+对Makefile最后生成的文件进行检查。
+
+这些功能和目标的对照关系并不是GNU make规定的。你可以在Makefile中定义任何命名的伪目标。但是以上这些都被作约定，所有开源的工程中这些特殊的目标的命名都是按照这种约定来的。既然绝大多数程序员都遵循这种约定，自然我们也应该按照这种约定来做。否则在别人看来这样Makefile只能算一个样例，不能作为正式版本。
+
+
+\section{替代命令的执行}
+书写Makefile的目的就是为了告诉make一个目标是否过期，以及如果重建一个过期的目
+标。但是在某些时候，我们并不希望真正更新那些已经过期的目标文件（比如：只是检
+查更新目标的命令是否正确，或者察看那些目标需要更新）。要实现这样的目的，可以
+使用一些特定的参数来限定make执行的动作。通过指定参数，替代make默认动作的执
+行。因此我们把这种方式称为：替代命令的执行。这些参数包括：
+
+\begin{Verbatim}[]
+-n
+--just-print
+--dry-run
+--recon
+\end{Verbatim}
+指定make执行空操作（不执行规则的命令），只打印出需要重建目标使用的命令（只打
+印过期的目标的重建命令），而不对目标进行重建。
+
+\begin{Verbatim}[]
+-t
+--touch
+\end{Verbatim}
+类似于shell下的“touch”命令的功能。更新所有目标文件的时间戳（对于过时的目标文
+件不进行内容更新，只更新时间戳）。
+
+\begin{Verbatim}[]
+-q
+--question
+\end{Verbatim}
+不执行任何命令并且不打印任何输出信息，只检查所指定的目标是否已经是最新的。如
+果是则返回0，否则返回1。使用“-q”（“--question”）的目的只是让make返回给定（没
+有指定则时终极目标）的目标是否是最新的。可以根据它的返回值来判断是否须要真正
+的执行更新目标的动作。
+
+\begin{Verbatim}[]
+-W FILE
+--what-if= FILE
+--assume-new= FILE
+--new-file= FILE
+\end{Verbatim}
+这个参数需要指定一个文件名。通常是一个存在源文件。make将当前系统时间作为这个
+文件的时间戳（假设这个文件被修改过，但不真正的更改文件本身的时间戳）。因此这
+个文件的时间戳被认为最新的，在执行时依赖于这个文件的目标将会被重建。通过这种
+方式并结合“-n”参数，我们可以查看那些目标依赖于这个文件（修改这个文件以后执行
+make那些目标会被更新）。通常“-W”参数和“-n”参数一同使用，可以在修改一个文件后
+来检查修改会造成那些目标需要被更新，但并不执行更新的命令，只是打印命令。“-W”
+和“-t”参数配合使用时，make将忽略其它规则的命令。只对依赖于“-W”指定文件的目标
+执行“touch”命令，在没有使用“-s”时，可以看到那些文件执行了“touch”。需要说明的
+是，make在对文件执行“touch”时不是调用shell的命令，而是由make直接操作。
+
+“-W”和“-q”参数配合使用时。由于将当前时间作为指定文件的时间戳（目标文件相对于
+系统当前时间是过时的），所以make的返回状态在没有错误发生时为1，存在错误时为
+2。
+
+\begin{quote}\kaishu
+\textbf{注意：}以上三个参数同时使用时可能会出现错误。
+\end{quote}
+
+\noindent \textbf{总结：}
+
+参数“-n”、“-t”和“-q”不影响之前带“+”号和包含“\$(MAKE)”的命令行的执行。就是说如
+果在规则的命令行中命令之前使用了“+”或者此命令行是递归地make调用时，无论是否使
+用了这三个参数之一，这些命令都得到执行。
+
+“-W”参数有两个特点：
+
+\begin{enumerate}
+\itemsep=4pt \parskip=0pt
+  \item 可以和“-n”或者“-q”参数配合使用来查看修改所带来的影响（导致那些目标
+      会被重建）。
+  \item 在不指定“-n”和“-q”参数、只使用“-W”指定一个文件时，可以模拟这个文件
+      被修改的状态。make就会重建依赖于此文件的所有目标。
+\end{enumerate}
+
+另外“-p”和“-v”参数可以允许我们输出Makefille被执行的过程信息，相信这一点在很多
+场合，特别是调试Makefile时非常有用（本章的最后一节有详细讨论）。
+
+
+\section{防止特定文件重建}
+时当修改了工程中的某一个文件后，并不希望重建那些依赖于这个文件的目标。比如说
+我们在给一个头文件中加入了一个宏定义、或者一个增加的函数声明，这些修改不会对
+已经编译完成的程序产生任何影响。但在执行make时，因为头文件的改变会导致所有包
+含它的源文件被重新编译，当然了终极目标肯定也会被重建（除非你的模块时独立的，
+或者你的Makefile的规则链的定义本身就存在缺陷）。这种情况时，为了避免重新编译
+整个工程，我们可以按照下边的过程来处理：
+
+第一种：
+
+\begin{enumerate}
+\itemsep=4pt \parskip=0pt
+  \item 使用“make”命令对所有需要更新的目标进行重建。保证修改某个文件之前所
+      有的目标已经是最新的。
+  \item 编辑需要修改的那个源文件（修改的头文件的内容不能对之前的编译的程序
+      有影响，比如：更改了头文件中的宏定义。这样会造成已经存在的程序和实现
+      不相符！这里所说的修改指：不改变已经存在的任何东西，除非你有特殊的要
+      求）。
+  \item 使用“make -t”命令来改变已存在的所有的目标文件的时间戳，将其最后修改
+      时间修改到当前时间。
+\end{enumerate}
+
+第一种方式的现实基于这样的前提：需要对未更改头文件之前的编译程序进行保存（有
+点像备份）。通常这种需求还是比较少见的。更多的情况是：修改这个头文件之前已经
+修改了很多源文件或者其它的头文件，并且也没有执行make（缺少了上边的第一步）。
+这种方式，有点像有计划的修改。没有普遍性，修改通常是不可预知的。因此这种方式
+在实际应用中几乎没有参考的意义。对于不可预知的修改所带来的问题，我们需要另外
+一种方式。
+
+第二种方式在很大程度上可以满足我们的需求：
+
+\begin{enumerate}
+\itemsep=4pt \parskip=0pt
+  \item 执行编译，使用“make –o HEADERFILE”，“HEADERFILE”为需要忽略更改的头
+      文件，防止那些依赖于这个头文件的目标被重建。忽略多个头文件的修改可使
+      用多个“-o HEADERFILE”。这样，头文件“HEADERFILE”的修改就不会触发依赖它
+      的目标被重建（通过“-o”告诉make，这个头文件的时间戳比它的依赖晚）。%
+      \textbf{需要注意的是：“-o”参数的这种使用方式仅限于头文件（.h文件），
+  不
+      能使用“-o”来指定源文件。}
+  \item 执行“make -t”命令。
+\end{enumerate}
+
+
+\section{替换变量定义}
+执行make时，一个含有“=”的命令行参数“V=X”的含义是定义变量“V”的值为“X”，并将这
+个比变量作为make的参数。这种方式定义的变量会替代Makefile中的同名变量定义（如
+果存在，并且在Makefile中没有使用指示符“override”对这个变量进行说明），这个过
+程被称之命令行参数定义覆盖普通变量定义。
+
+通常用这种方式来传递一个公共变量给make。例如：在Makefile中，使用变量“CFLAGS”
+来指定编译参数，在Makefile规则的命令一般都是这么写的：
+
+\begin{Verbatim}[]
+cc -c $(CFLAGS) foo.c
+\end{Verbatim}
+
+这样就可以通过改变“CFLAGS”的值来控制编译选项。我们可以在Makefile中为它指定
+值。例如：
+\begin{Verbatim}[]
+CFLAGS=-g
+\end{Verbatim}
+当直接执行“make”时，编译命令是“cc –c –g foo.c”。如果需要改变“CFLAGS”的定义，
+可以在命令行中指定这个变量的值，像这样“make CFLAGS=’-g –O2’”，此时所执行的编
+译命令将是“cc –c –g –O2 foo.c”（在参数中如果包含空格或者shell的特殊字符，则需
+要将参数放在引号中）。对变量“CFLAGS”定义追加的功能就是使用这种方式来实现的。
+
+变量“CFLAGS”可以通过这种方式来实现，它是make的隐含变量之一。对于普通变量的定
+义，也可以通过这种方式来对它进行重新定义（覆盖Makefile中的定义）、或者实现变
+量值的追加功能。
+
+通过命令行定义变量时，也存在两种风格的变量定义：递归展式定义和直接展开式定
+义。上例中使用递归展开式的定义（使用“=”），也可以是直接展开式的（使用“:=”）。
+除非在命令行定义的变量值中包含了对其他变量或者函数的引用，否则这两种方式在此
+是等价的。
+
+为了防止命令行参数的变量定义覆盖Makefile中的同名变量定义，可以在Makefile中使
+用指示符“override”声明这个变量。这一点前边的章节已经有详细的讨论！
+
+
+\section{使用make进行编译测试}
+
+正常情况make在执行Makefile时，如果出现命令执行的错误，会立即放弃继续执行并返
+回一个非0的状态。就是说错误发生点之后的命令将不会被执行。一个错误的发生就表明
+了终极目标将不能被重建，make一旦检查到错误就会立刻终止执行。
+
+假如我们在修改了一些源文件之后重新编译工程，当然了，我们所希望的是在某一个文
+件编译出错以后能够继续进行后续文件的编译。直到最后出现链接错误时才退出。这样
+的目的是为了了解所修改的文件中那些文件没有修改正确。在下一次编译之前能够对出
+现错误的所有文件进行改正。而不是编译一次改正一个文件，或者改正一个文件再编译
+一次。
+
+我了实现我们这个目的，需要使用make的“-k”或者“--keep-going”命令行选项。这个参
+数的功能是告诉make当出现错误时继续执行，直到最后出现致命错误（无法重建终极目
+标）才返回非0并退出。例如：当编译一个.o目标文件时出现错误，如果使用“make -k”
+执行，make将不会在检测到这个错误时退出（虽然已经知道终极目标是不可能会重建成
+功的）；只是给出一个错误消息，make将继续重建其它需要重建的目标文件；直到最后
+出现致命错误才退出。在没有使用“-k”或者“—keep-going”时，make在检测到错误时会立
+刻退出。
+
+总之：在通常情况下，make的目的是重建终极目标。当它在执行过程中一旦发现无法重
+建终极目标，就立刻以非0状态退出。当使用“-k”或者“--keep-going”参数时，执行的目
+的是为了测试重建过程，需要发现存在的所有问题，以便在下一次make之前进行修正。
+这也是调试Makefile或者查找源文件错误的一种非常有效的手段。
+
+
+\section{make的命令行选项}
+本节罗列了make 所支持的命令行参数（这些参数可以通过man手册查看）：
+
+
+\begin{dinglist}{47}
+\itemsep=4pt
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{-b} \\
+          \textbf{-m}
+        \end{minipage}
+
+忽略，提供其它版本make兼容性。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{-B} \\
+          \textbf{-{}-always-make}
+        \end{minipage}
+
+强制重建所有规则的目标，不根据规则的依赖描述决定是否重建目标文件。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{-C DIR} \\
+          \textbf{-{}-directory=DIR}
+        \end{minipage}
+
+在读取Makefile之前，进入目录“DIR”，就是切换工作目录到“DIR”之后执行make。存在
+多个“-C”选项时，make的最终工作目录是第一个目录的相对路径。如：“make -C / -C
+etc”等价于“make -C /etc”。一般此选项被用在递归地make调用中。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{-d}
+        \end{minipage}
+
+make在执行过程中打印出所有的调试信息。包括：make认为那些文件需要重建；那些文
+件需要比较它们的最后修改时间、比较的结果；重建目标所要执行的命令；使用的隐含
+规则等。使用“-d”选项我们可以看到make构造依赖关系链、重建目标过程的所有信息，
+它等效于“-{}-debug=a”。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{-{}-debug[=OPTIONS]}
+        \end{minipage}
+
+make执行时输出调试信息。可以使用“OPTIONS”控制调试信息级别。默认是%
+“OPTIONS=\\%
+b”，“OPTIONS”的可能值为以下这些，首字母有效（all 和 aw等效）。
+
+\begin{itemize}
+\item a（all）
+
+输出所有类型的调试信息，等效于“-d”选项。
+
+\item b（basic）
+
+输出基本调试信息。包括：那些目标过期、是否重建成功过期目标文件。
+
+\item v（verbose）
+
+“basic”级别之上的输出信息。包括：解析的makefile文件名，不需要重建文件等。此选项目默认打开“basic”级别的调试信息。
+
+\item i（implicit）
+
+输出所有使用到的隐含规则描述。此选项目默认打开“basic”级别的调试信息。
+
+\item j（jobs）
+
+输出所有执行命令的子进程，包括命令执行的PID等。
+
+\item m（makefile）
+
+也就是makefile，输出make读取makefile，更新makefile，执行makefile的信息。
+
+\end{itemize}
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{-e} \\
+          \textbf{-{}-environment-overrides}
+        \end{minipage}
+
+使用系统环境变量的定义覆盖Makefile中的同名变量定义。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{-f=FILE} \\
+          \textbf{-{}-file=FILE} \\
+          \textbf{-{}-makefile=FILE}
+        \end{minipage}
+
+指定“FILE”为make执行的makefile文件。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{-h} \\
+          \textbf{-{}-help}
+        \end{minipage}
+
+打印帮助信息。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{-i} \\
+          \textbf{-{}-ignore-errors}
+        \end{minipage}
+
+执行过程中忽略规则命令执行的错误。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{-I DIR} \\
+          \textbf{-{}-include-dir=DIR}
+        \end{minipage}
+
+指定被包含makefile文件的搜索目录。在Makefile中出现“include”另外一个文件时，将
+在“DIR”目录下搜索。多个“-I”指定目录时，搜索目录按照指定顺序进行。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{-j  [JOBS]} \\
+          \textbf{-{}-jobs[=JOBS]}
+        \end{minipage}
+
+指定可同时执行的命令数目。在没有指定“-j”参数的情况下，执行的命令数目将是系统
+允许的最大可能数目。存在多个“-j”参数时，尽最后一个“-j”指定的数目（“JOBS”）有
+效。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{-k} \\
+          \textbf{-{}-keep-going}
+        \end{minipage}
+
+执行命令错误时不终止make的执行，make尽最大可能的执行所有的命令，直到出现致命
+错误才终止。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{-l LOAD} \\
+          \textbf{-{}-load-average[=LOAD]}\\
+          \textbf{-{}-max-load[=LOAD]}
+        \end{minipage}
+
+告诉make当存在其它任务在执行时，如果系统负荷超过“LOAD”（浮点数表示的），不再
+启动新任务。没有指定“LOAD”的“-I”选项将取消之前“-I”指定的限制。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{-n} \\
+          \textbf{-{}-just-print}\\
+          \textbf{-{}-dry-run}\\
+          \textbf{-{}-recon}
+        \end{minipage}
+
+只打印出所要执行的命令，但不执行命令。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{-o FILE} \\
+          \textbf{-{}-old-file=FILE}\\
+          \textbf{-{}-assume-old=FILE}
+        \end{minipage}
+
+指定文件“FILE”不需要重建，即使相对于它的依赖已经过期；同时也不重建依赖于此文
+件任何文件（目标文件）。注意：此参数不会通过变量“MAKEFLAGS”传递给子make进程。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{-p} \\
+          \textbf{-{}-print-data-base}
+        \end{minipage}
+
+命令执行之前，打印出make读取的Makefile的所有数据（包括规则和变量的值），同时
+打印出make的版本信息。如果只需要打印这些数据信息（不执行命令）可以使用“make
+-qp”命令。查看make执行前的预设规则和变量，可使用命令“make –p -f /dev/null”。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{-q} \\
+          \textbf{-{}-question}
+        \end{minipage}
+
+称为“询问模式”；不运行任何命令，并且无输出。make只是返回一个查询状态。返回状
+态为0表示没有目标需要重建，1表示存在需要重建的目标，2表示有错误发生。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{-r} \\
+          \textbf{-{}-no-builtin-rules}
+        \end{minipage}
+
+取消所有内嵌的隐含规则，不过你可以在Makefile中使用模式规则来定义规则。同时选
+项“-r”会取消所有支持后追规则的隐含后缀列表，同样我们也可以在Makefile中使用
+“.SUFFIXES”定义我们自己的后缀规则。“-r”选项不会取消make内嵌的隐含变量。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{-R} \\
+          \textbf{-{}-no-builtin-variabes}
+        \end{minipage}
+
+取消make内嵌的隐含变量，不过我们可以在Makefile中明确定义某些变量。注意，“-R”
+选项同时打开“-r”选项。因为没有了隐含变量，隐含规则将失去意义（隐含规则是以内
+嵌的隐含变量为基础的）。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{-s} \\
+          \textbf{-{}-silent}\\
+            \textbf{-{}-quiet}
+        \end{minipage}
+
+取消命令执行过程的打印。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{-S} \\
+          \textbf{-{}-no-keep-going}\\
+            \textbf{-{}-stop}
+        \end{minipage}
+
+取消“-k”选项。在递归的make过程中子make通过“MAKEFLAGS”变量继承了上层的命令行选
+项。我们可以在子make中使用“-S”选项取消上层传递的“-k”选项，或者取消系统环境变
+量“MAKEFLAGS”中的“-k”选项。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{-t} \\
+          \textbf{-{}-touch}
+        \end{minipage}
+
+和Linux的touch命令实现功能相同，更新所有目标文件的时间戳到当前系统时间。防止
+make对所有过时目标文件的重建。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{-v} \\
+          \textbf{-{}-version}
+        \end{minipage}
+
+查看make版本信息。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{-w} \\
+          \textbf{-{}-print-directory}
+        \end{minipage}
+
+在make进入一个目录读取Makefile之前打印工作目录。这个选项可以帮助我们调试
+Makefile，跟踪定位错误。使用“-C”选项时默认打开这个选项。参考本节前半部分“-C”
+选项的描述。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{-{}-no-print-directory}
+        \end{minipage}
+
+取消“-w”选项。可以是用在递归的make调用过程中，取消“-C”参数的默认打开“-w”功
+能。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{-W FILE} \\
+          \textbf{-{}-what-if=FILE}\\
+          \textbf{-{}-new-file=FILE}\\
+          \textbf{-{}-assume-file=FILE}
+        \end{minipage}
+
+设定文件“FILE”的时间戳为当前时间，但不改变文件实际的最后修改时间。此选项主要
+是为实现了对所有依赖于文件“FILE”的目标的强制重建。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{-{}-warn-undefined-variables}
+        \end{minipage}
+
+在发现Makefile中存在对没有定义的变量进行引用时给出告警信息。此功能可以帮助我
+们调试一个存在多级套嵌变量引用的复杂Makefile。但是：我们建议在书写Makefile时
+尽量避免超过三级以上的变量套嵌引用。
+
+\end{dinglist}

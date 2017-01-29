@@ -1,0 +1,157 @@
+﻿\chapter{make的常见错误信息}
+
+本章对make执行时可能出现常见错误进行汇总、分析，并给出修正的可能方法。
+
+make执行过程中所产生错误并不都是致命的；特别是在命令行之前存在“-”、或者make使
+用“-k”选项执行时。make执行过程的致命错误都带有前缀字符串“***”。
+
+错误信息都有前缀，一种是执行程序名作为错误前缀（通常是“make”）；另外一种是当
+Makefile本身存在语法错误无法被make解析并执行时，前缀包含了makefile文件名和出
+现错误的行号。
+
+在下述的错误列表中，省略了普通前缀：
+
+\begin{dinglist}{226}
+\itemsep=4pt \parskip=2pt
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{[FOO] Error NN} \\
+          \textbf{[FOO] signal description}
+        \end{minipage}
+
+这类错误并不是make的真正错误。它表示make检测到make所调用的作为执行命令的程序
+返回一个非零状态（Error NN），或者此命令程序以非正常方式退出（携带某种信
+号），参考 5.4 命令的错误 一节。
+
+如果错误信息中没有附加“***”字符串，则是子过程的调用失败，如果Makefile中此命令
+有前缀“-”，make会忽略这个错误。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{missing separator. Stop.} \\
+          \textbf{missing separator (did you mean TAB instead of 8 spaces?). Stop.}
+        \end{minipage}
+
+不可识别的命令行，make在读取Makefile过程中不能解析其中包含的内容。GNU make在
+读取Makefile时根据各种分隔符（:, =, [TAB]字符等）来识别Makefile的每一行内容。
+这些错误意味着make不能发现一个合法的分隔符。
+
+出现这些错误信息的可能的原因是（或许是编辑器，绝大部分是ms-windows的编辑器）
+在Makefile中的命令之前使用了4个（或者8个）空格代替了[Tab]字符。这种情况，将产
+生上述的第二种形式产生错误信息。且记，所有的命令行都应该是以[Tab]字符开始的。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{commands commence before first target. Stop.} \\
+          \textbf{missing rule before commands. Stop.}
+        \end{minipage}
+
+Makefile可能是以命令行开始：以[Tab]字符开始，但不是一个合法的命令行（例如，一
+个变量的赋值）。命令行必须和规则一一对应。
+
+产生第二种的错误的原因可能是一行的第一个非空字符为分号，make会认为此处遗漏了
+规则的“target: prerequisite”部分。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{No rule to make target `XXX'.} \\
+          \textbf{No rule to make target ` XXX ', needed by `yyy'.}
+        \end{minipage}
+
+无法为重建目标“XXX”找到合适的规则，包括明确规则和隐含规则。
+
+修正这个错误的方法是：在Makefile中添加一个重建目标的规则。其它可能导致这些错
+误的原因是Makefile中文件名拼写错误，或者破坏了源文件树（一个文件不能被重建，
+可能是由于依赖文件的问题）。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{No targets specified and no makefile found. Stop.} \\
+          \textbf{No targets. Stop.}
+        \end{minipage}
+
+第一个错误表示在命令行中没有指定需要重建的目标，并且make不能读入任何makefile
+文件。第二个错误表示能够找到makefile文件，但没有终极目标或者没有在命令行中指
+出需要重建的目标。这种情况下，make什么也不做。参考 第九章 执行make。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{Makefile `XXX' was not found.} \\
+          \textbf{Included makefile `XXX' was not found.}
+        \end{minipage}
+
+没有使用“-f”指定makefile文件，make不能在当前目录下找到默认Makefile（makefile
+或者GNUmakefile）。使用“-f”指定文件，但不能读取这个指定的makefile文件。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{warning: overriding commands for target `XXX'} \\
+          \textbf{warning: overriding commands for target `XXX'}
+        \end{minipage}
+
+对同一目标“XXX”存在一个以上的重建命令。GNU make规定：当同一个文件作为多个规则
+的目标时，只能有一个规则定义重建它的命令（双冒号规则除外）。如果为一个目标多
+次指定了相同或者不同的命令，就会产生第一个告警；第二个告警信息说新指定的命令
+覆盖了上一次指定的命令。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{Circular XXX <- YYY dependency dropped.}
+        \end{minipage}
+
+规则的依赖关系产生了循环：目标“XXX”的依赖文件为“YYY”，而依赖“YYY”的依赖列表中
+又包含“XXX”。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{Recursive variable `XXX' references itself (eventually). Stop.}
+        \end{minipage}
+
+make的变量“XXX”（递归展开式）在替换展开时，引用它自身。无论对于直接展开式变量
+（通过:=定义的）或追加定义（+=），这都是不允许的。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{Unterminated variable reference. Stop.}
+        \end{minipage}
+
+变量或者函数引用语法不正确，没有使用完整的的括号（缺少左括号或者右括号）。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{insufficient arguments to function `XXX'. Stop.}
+        \end{minipage}
+
+函数“XXX”引用时参数数目不正确。函数缺少参数。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{missing target pattern. Stop.} \\
+          \textbf{multiple target patterns. Stop.} \\
+          \textbf{target pattern contains no `\%'. Stop.} \\
+          \textbf{mixed implicit and static pattern rules.  Stop.}
+        \end{minipage}
+
+不正确的静态模式规则。
+
+第一条错误的原因是：静态模式规则的目标段中没有模式目标；
+
+第二条错误的原因是：静态模式规则的目标段中存在多个模式目标；
+
+第三条错误的原因是：静态模式规则的目标段目标模式中没有包含模式字符“\%”；
+
+第四条错误的原因是：静态模式规则的三部分都包含了模式字符“\%”。正确的应该是只
+有后两个才可以包含模式字符“\%”。
+
+关于静态模式规则可参考 4.12 静态模式 一节。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{warning: -jN forced in submake: disabling jobserver mode.}
+        \end{minipage}
+
+这一条告警和下条告警信息发生在：make检测到递归的make调用时，可通信的子make进
+程出现并行处理的错误。递归执行的make的命令行参数中存在“-jN”参数（N的值大于
+1），在有些情况下可能导致此错误，例如：Makefile中变量“MAKE”被赋值为“make
+–j2”，并且递归调用的命令行中使用变量“MAKE”。在这种情况下，被调用make进程不能
+和其它make进程进行通信，其只能简单的独立的并行处理两个任务”。
+
+  \item \begin{minipage}[t]{\linewidth}
+          \textbf{warning: jobserver unavailable: using -j1. Add `+' to parent make rule.}
+        \end{minipage}
+
+为了现实make进程之间的通信，上层make进程将传递信息给子make进程。在传递信息过
+程中可能存在这种情况，子make进程不是一个实际的make进程，而上层make却不能确定
+子进程是否是真实的make进程。它只是将所有信息传递下去。上层make采用正常的算法
+来决定这些。当出现这种情况，子进程只会接受父进程传递的部分有用的信息。子进程
+会产生该警告信息，之后按照其内建的顺序方式进行处理。
+
+\end{dinglist}

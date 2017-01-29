@@ -1,0 +1,161 @@
+﻿\chapter{GNU make的特点}
+截至本章为止，所有关于GNU make使用的讨论全部结束。相信大家也能够独立、熟练的
+书写Makefile，并能够使用GNU 的make来管理自己的工程。
+
+本章是GNU make特点的总结。主要是和其它版本make得比较。这些特征都是以4.2 BSD
+中的make的为基准。当需要书写可移植到不同的类UNIX系统上的Makefile时，应避免使
+用GNU 版本make自身的一些特征。
+
+\section{源自System v的特点}
+下面所罗列的这些是来自System V版本make的一些特点：
+
+\begin{dinglist}{226}
+\itemsep=4pt
+
+\item 变量“VPATH”及它的含义（参考 4.5 目录搜索 一节）。System V版本的make支
+    持，但没有得到验证。4.3 BSD 的make支持（据说是对System V的make这一功能的
+    仿照）。
+
+\item 可包含其它makefile文件（参考 3.3 包含其它makefile文件 一节）。使用指示
+    符“include”可同时包含多个文件是GNU的扩展。
+
+\item 可使用系统环境变量。参考 6.9 系统环境变量 一节。
+
+\item 变量“MAKEFLAGS”。用于make递归调用时传递命令行选项。参考 5.6 make的递归
+    调用 一节。
+
+\item  make静态库（文档文件）是“\$\%”可代表静态库成员名。参考 10.5.3 自动化变
+    量 一节。
+
+\item 对自动变量“\$@”、“\$*”、“\$\verb"<"”、“\$\%”和“\$?”进行了扩展，支持
+    “\$(@F)”和
+    “\$(@D)”等形式的自动环变量。并以此对自动变量“\$\verb"^"”进行了扩展。参考 10.5.3 自
+    动化变量 一节。
+
+\item 变量引用。参考 6.1变量的引用 一节。
+
+\item 支持使用命令行选项“-b”和“-m”来兼容其它版本的make。System V 的make中，这
+    些选项有实际含义。
+
+\item 使用变量“MAKE”执行的递归调用。可支持“-n”、“-q”和“-t”向子make进程的传
+    递。参考  5.6 make的递归调用 一节。
+
+\item 支持后缀“.a”（参考 11.4 静态库的后缀规则 一节）。不过这个特点在GNU make
+    的新版本中已经被模式规则所取代。
+
+\item 保持Makefile规则命令行的书写格式，只是去掉了初始空字符。执行命令的回显
+    保持Makefile中的书写格式不变。
+
+\end{dinglist}
+
+\section{源自其他版本的特点}
+
+下面的特点来自于其它版本的make，但每一个特征来自由哪个版本的make不太清楚：
+
+\begin{dinglist}{226}
+\itemsep=4pt
+
+\item 模式规则使用模式字符“\%”。目前在多个不同版本的make中都有使用“\%”。但具
+    体是那个版本的make提出它不甚清楚。关于模式规则参考  10.5 模式规则 一节。
+
+\item 规则链以及隐含的中间过程文件。这个特点首次是在Stu Feldman 的make版本中
+    实现，并用于AT\&T第八版的Unix研究中。后来AT\&T贝尔实验室的Andrew Hume 在它
+    的mk程序中应用（这里称为“传递闭合”）。但不清楚这个特征是对它们的继承还是
+    GNU自己的重新实现。参考 10.4 隐含规则链 一节。
+
+\item 包含规则所有依赖文件列表的自动化变量“\$\verb"^"”。可以确定这不是GNU创造
+    的，但
+    具
+    体是哪个版本的make创造也不清楚。参考 10.5.3 自动化变量 一节。
+
+\item 命令行的“what if”选项（GNU make的“-W”选项）据说是Andrew Hume 在mk中首次
+    提出的的。参考 9.7 make的命令行选项 一节。
+
+\item  并发执行的观点，在其它多种版本的make中都有支持。但System V 和BSD 没有
+    实现此功能。参考 5.3 并发执行命令 一节。
+
+\item 变量的模式替换引用来自SunOS 4。参考 6.3 变量的高级用法 一节。GNU make
+    中，这个功能是在SunOS 4实现之前由函数“patsubst”提供。同一功能的两种实现，
+    在两个版本的make中，难以确定是哪一个最早提出这个概念。
+
+\item 命令行之前使用“+”字符，它有特殊的含义（参考 9.3 替代命令的执行 一节）。
+    这种做法是由IEEE Standard 1003.2-1992 (POSIX.2)定义的。
+
+\item 变量值追加“+=”的语法来自于SunOS 4 版本的make。参考 6.6 追加变量值 一
+    节。
+
+\item 静态库成员列表作为目标的语法“ARCHIVE(MEM1 MEM2...)”源自SunOS 4 make。参
+    考 11.1 库成员作为目标 一节。
+
+\item 使用“-include”包括多个其它的makefile文件，当所包含的文件不存在时不出
+    错。这个特征源自SunOS 4 版本的make。（但SunOS 4版本的make不能使用单指示符
+    同时包含多个文件） 。GNU make的这个特征和SGI make 的指示符“sinclude”相
+    同。GNU make也支持“sinclude”。
+
+\end{dinglist}
+
+\section{GNU make自身的特点}
+
+以下特点是由GNU make本身的：
+
+\begin{dinglist}{226}
+\itemsep=4pt
+
+\item 命令行选项“-v”或“--version”打印make的版本和版权信息。
+
+\item 使用“-h”或“--help”列出make支持的所有命令行选项。
+
+\item 直接展开式变量。参考 6.2 两种变量定义 一节。
+
+\item 变量“MAKE”支持make递归调用时命令行选项的传递。参考  5.6 make的递归调用
+    一节。
+
+\item  命令选项“-C”或“--directory”改变make执行的工作目录。参考 9.7 make的命令
+    行选项 一节。
+
+\item 支持多行变量的定义。参考 6.8 定义多行变量 一节。
+
+\item 使用特殊目标“.PHONY”声明伪目标。AT\&T 贝尔实验室Andrew Hume 使用不同的
+    语
+    法在它的mk程序中也实现了该功能。两者几乎在同时支持。参考 4.6 Makefile伪目
+    标 一节。
+
+\item 支持过个文本处理函数。参考 8.2 文本处理函数 一节。
+
+\item 支持使用“-o”或者“--old-file”选项指定一个文件是未修改文件（告诉make不需
+    要考虑这个文件的时间戳）。参考 9.4 防止特定文件重建 一节。
+
+\item 条件执行。众多其它版本的make也支持；它似乎是对c语言预处理程序和宏语言的
+    自然扩展，不能算是一个全新的概念。参考 第七章 Makefile的条件判断 一章。
+
+\item 指定包含makefile文件的搜寻路径。参考 3.3 包含其它makefile文件 一节。
+
+\item 环境变量“MAKEFILES”指定需要默认读取的makefile文件。参考 3.4 变量
+    MAKEFILES 一节。
+
+\item 去除文件名中的“./”，因此“./file”和“file”等价。
+
+\item 支持在规则依赖中使用“-lNAME”来指定连接库。参考 4.5 目录搜索 一节。
+
+\item 允许后缀规则中后缀名可以是任何字符串（参考 10.7 后缀规则 一节）。其它版
+    本make中后缀必须以“.”开始，并且后缀中不能包含斜杠“/”。
+
+\item 内嵌变量“MAKELEVEL”，这个变量被用来跟踪make递归调用过程调用深度。 参考
+    5.6 make的递归执行 一节。
+
+\item 内嵌变量“MAKECMDGOALS”，这个变量代表了make执行的终极目标。8.2 指定终极
+    目标 一节。
+
+\item 指定静态模式规则。参考 4.12 静态模式 一节。
+
+\item 支持选择性搜索关键字“vpath”。参考 4.5 目录搜索 一节。
+
+\item 支持计算的变量引用。参考 6.3 变量的高级用法 一节。
+
+\item 支持自动重建makefile文件（参考 3.7 makefile文件的重建 一节）。
+
+\item 多个新的内嵌隐含规则。
+
+\item 内嵌变量“MAKE\_VERSION”代表当前的make版本。
+
+\end{dinglist}
